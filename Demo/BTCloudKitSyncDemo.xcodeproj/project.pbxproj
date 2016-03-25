@@ -1,0 +1,459 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2190070A1CA4F6E40034BC8D /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007091CA4F6E40034BC8D /* main.m */; };
+		2190070D1CA4F6E40034BC8D /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 2190070C1CA4F6E40034BC8D /* AppDelegate.m */; };
+		219007131CA4F6E40034BC8D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 219007111CA4F6E40034BC8D /* Main.storyboard */; };
+		219007151CA4F6E40034BC8D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 219007141CA4F6E40034BC8D /* Assets.xcassets */; };
+		219007181CA4F6E40034BC8D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 219007161CA4F6E40034BC8D /* LaunchScreen.storyboard */; };
+		219007231CA4F8FC0034BC8D /* BTCloudKitSync.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007211CA4F8FC0034BC8D /* BTCloudKitSync.m */; };
+		219007291CA4F9B00034BC8D /* BTContactChange.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007261CA4F9B00034BC8D /* BTContactChange.m */; };
+		2190072A1CA4F9B00034BC8D /* BTTableViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007281CA4F9B00034BC8D /* BTTableViewController.m */; };
+		2190072D1CA4FA5D0034BC8D /* BTDB.m in Sources */ = {isa = PBXBuildFile; fileRef = 2190072C1CA4FA5D0034BC8D /* BTDB.m */; };
+		219007301CA4FAAA0034BC8D /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 2190072F1CA4FAAA0034BC8D /* libsqlite3.tbd */; };
+		219007321CA4FAB10034BC8D /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 219007311CA4FAB10034BC8D /* CloudKit.framework */; };
+		219007341CA4FABA0034BC8D /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 219007331CA4FABA0034BC8D /* QuartzCore.framework */; };
+		219007381CA4FF470034BC8D /* BTContact.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007371CA4FF470034BC8D /* BTContact.m */; };
+		219007481CA5011C0034BC8D /* FMDatabase.m in Sources */ = {isa = PBXBuildFile; fileRef = 2190073E1CA5011C0034BC8D /* FMDatabase.m */; };
+		219007491CA5011C0034BC8D /* FMDatabaseAdditions.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007401CA5011C0034BC8D /* FMDatabaseAdditions.m */; };
+		2190074A1CA5011C0034BC8D /* FMDatabasePool.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007421CA5011C0034BC8D /* FMDatabasePool.m */; };
+		2190074B1CA5011C0034BC8D /* FMDatabaseQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007441CA5011C0034BC8D /* FMDatabaseQueue.m */; };
+		2190074C1CA5011C0034BC8D /* FMResultSet.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007471CA5011C0034BC8D /* FMResultSet.m */; };
+		219007551CA501360034BC8D /* SVIndefiniteAnimatedView.m in Sources */ = {isa = PBXBuildFile; fileRef = 2190074E1CA501360034BC8D /* SVIndefiniteAnimatedView.m */; };
+		219007561CA501360034BC8D /* SVProgressHUD.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 219007501CA501360034BC8D /* SVProgressHUD.bundle */; };
+		219007571CA501360034BC8D /* SVProgressHUD.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007521CA501360034BC8D /* SVProgressHUD.m */; };
+		219007581CA501360034BC8D /* SVRadialGradientLayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 219007541CA501360034BC8D /* SVRadialGradientLayer.m */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		219007051CA4F6E40034BC8D /* BTCloudKitSyncDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BTCloudKitSyncDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		219007091CA4F6E40034BC8D /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		2190070B1CA4F6E40034BC8D /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		2190070C1CA4F6E40034BC8D /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		219007121CA4F6E40034BC8D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		219007141CA4F6E40034BC8D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		219007171CA4F6E40034BC8D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		219007191CA4F6E40034BC8D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		219007201CA4F8FC0034BC8D /* BTCloudKitSync.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BTCloudKitSync.h; path = ../BTCloudKitSync/BTCloudKitSync.h; sourceTree = "<group>"; };
+		219007211CA4F8FC0034BC8D /* BTCloudKitSync.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = BTCloudKitSync.m; path = ../BTCloudKitSync/BTCloudKitSync.m; sourceTree = "<group>"; };
+		219007221CA4F8FC0034BC8D /* BTCloudKitSyncConstants.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BTCloudKitSyncConstants.h; path = ../BTCloudKitSync/BTCloudKitSyncConstants.h; sourceTree = "<group>"; };
+		219007241CA4F9B00034BC8D /* BTConstants.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BTConstants.h; sourceTree = "<group>"; };
+		219007251CA4F9B00034BC8D /* BTContactChange.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BTContactChange.h; sourceTree = "<group>"; };
+		219007261CA4F9B00034BC8D /* BTContactChange.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BTContactChange.m; sourceTree = "<group>"; };
+		219007271CA4F9B00034BC8D /* BTTableViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BTTableViewController.h; sourceTree = "<group>"; };
+		219007281CA4F9B00034BC8D /* BTTableViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BTTableViewController.m; sourceTree = "<group>"; };
+		2190072B1CA4FA5D0034BC8D /* BTDB.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BTDB.h; sourceTree = "<group>"; };
+		2190072C1CA4FA5D0034BC8D /* BTDB.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BTDB.m; sourceTree = "<group>"; };
+		2190072F1CA4FAAA0034BC8D /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		219007311CA4FAB10034BC8D /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
+		219007331CA4FABA0034BC8D /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		219007351CA4FADF0034BC8D /* BTCloudKitSyncDemo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = BTCloudKitSyncDemo.entitlements; sourceTree = "<group>"; };
+		219007361CA4FF470034BC8D /* BTContact.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BTContact.h; sourceTree = "<group>"; };
+		219007371CA4FF470034BC8D /* BTContact.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BTContact.m; sourceTree = "<group>"; };
+		2190073D1CA5011C0034BC8D /* FMDatabase.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = FMDatabase.h; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMDatabase.h"; sourceTree = "<group>"; };
+		2190073E1CA5011C0034BC8D /* FMDatabase.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = FMDatabase.m; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMDatabase.m"; sourceTree = "<group>"; };
+		2190073F1CA5011C0034BC8D /* FMDatabaseAdditions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = FMDatabaseAdditions.h; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMDatabaseAdditions.h"; sourceTree = "<group>"; };
+		219007401CA5011C0034BC8D /* FMDatabaseAdditions.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = FMDatabaseAdditions.m; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMDatabaseAdditions.m"; sourceTree = "<group>"; };
+		219007411CA5011C0034BC8D /* FMDatabasePool.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = FMDatabasePool.h; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMDatabasePool.h"; sourceTree = "<group>"; };
+		219007421CA5011C0034BC8D /* FMDatabasePool.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = FMDatabasePool.m; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMDatabasePool.m"; sourceTree = "<group>"; };
+		219007431CA5011C0034BC8D /* FMDatabaseQueue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = FMDatabaseQueue.h; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMDatabaseQueue.h"; sourceTree = "<group>"; };
+		219007441CA5011C0034BC8D /* FMDatabaseQueue.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = FMDatabaseQueue.m; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMDatabaseQueue.m"; sourceTree = "<group>"; };
+		219007451CA5011C0034BC8D /* FMDB.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = FMDB.h; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMDB.h"; sourceTree = "<group>"; };
+		219007461CA5011C0034BC8D /* FMResultSet.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = FMResultSet.h; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMResultSet.h"; sourceTree = "<group>"; };
+		219007471CA5011C0034BC8D /* FMResultSet.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = FMResultSet.m; path = "ThirdPartyLibraries/fmdb-2.6.2/src/fmdb/FMResultSet.m"; sourceTree = "<group>"; };
+		2190074D1CA501360034BC8D /* SVIndefiniteAnimatedView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SVIndefiniteAnimatedView.h; path = "ThirdPartyLibraries/SVProgressHUD-2.0-beta8/SVProgressHUD/SVIndefiniteAnimatedView.h"; sourceTree = "<group>"; };
+		2190074E1CA501360034BC8D /* SVIndefiniteAnimatedView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = SVIndefiniteAnimatedView.m; path = "ThirdPartyLibraries/SVProgressHUD-2.0-beta8/SVProgressHUD/SVIndefiniteAnimatedView.m"; sourceTree = "<group>"; };
+		2190074F1CA501360034BC8D /* SVProgressHUD-Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "SVProgressHUD-Prefix.pch"; path = "ThirdPartyLibraries/SVProgressHUD-2.0-beta8/SVProgressHUD/SVProgressHUD-Prefix.pch"; sourceTree = "<group>"; };
+		219007501CA501360034BC8D /* SVProgressHUD.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; name = SVProgressHUD.bundle; path = "ThirdPartyLibraries/SVProgressHUD-2.0-beta8/SVProgressHUD/SVProgressHUD.bundle"; sourceTree = "<group>"; };
+		219007511CA501360034BC8D /* SVProgressHUD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SVProgressHUD.h; path = "ThirdPartyLibraries/SVProgressHUD-2.0-beta8/SVProgressHUD/SVProgressHUD.h"; sourceTree = "<group>"; };
+		219007521CA501360034BC8D /* SVProgressHUD.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = SVProgressHUD.m; path = "ThirdPartyLibraries/SVProgressHUD-2.0-beta8/SVProgressHUD/SVProgressHUD.m"; sourceTree = "<group>"; };
+		219007531CA501360034BC8D /* SVRadialGradientLayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SVRadialGradientLayer.h; path = "ThirdPartyLibraries/SVProgressHUD-2.0-beta8/SVProgressHUD/SVRadialGradientLayer.h"; sourceTree = "<group>"; };
+		219007541CA501360034BC8D /* SVRadialGradientLayer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = SVRadialGradientLayer.m; path = "ThirdPartyLibraries/SVProgressHUD-2.0-beta8/SVProgressHUD/SVRadialGradientLayer.m"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		219007021CA4F6E40034BC8D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				219007341CA4FABA0034BC8D /* QuartzCore.framework in Frameworks */,
+				219007321CA4FAB10034BC8D /* CloudKit.framework in Frameworks */,
+				219007301CA4FAAA0034BC8D /* libsqlite3.tbd in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		219006FC1CA4F6E40034BC8D = {
+			isa = PBXGroup;
+			children = (
+				219007071CA4F6E40034BC8D /* BTCloudKitSyncDemo */,
+				2190071F1CA4F8DB0034BC8D /* BGCloudKitSync */,
+				2190073A1CA500A80034BC8D /* Third Party Classes */,
+				2190072E1CA4FA8D0034BC8D /* Frameworks and Libraries */,
+				219007061CA4F6E40034BC8D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		219007061CA4F6E40034BC8D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				219007051CA4F6E40034BC8D /* BTCloudKitSyncDemo.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		219007071CA4F6E40034BC8D /* BTCloudKitSyncDemo */ = {
+			isa = PBXGroup;
+			children = (
+				219007351CA4FADF0034BC8D /* BTCloudKitSyncDemo.entitlements */,
+				2190070B1CA4F6E40034BC8D /* AppDelegate.h */,
+				2190070C1CA4F6E40034BC8D /* AppDelegate.m */,
+				219007241CA4F9B00034BC8D /* BTConstants.h */,
+				219007271CA4F9B00034BC8D /* BTTableViewController.h */,
+				219007281CA4F9B00034BC8D /* BTTableViewController.m */,
+				219007111CA4F6E40034BC8D /* Main.storyboard */,
+				219007141CA4F6E40034BC8D /* Assets.xcassets */,
+				219007161CA4F6E40034BC8D /* LaunchScreen.storyboard */,
+				219007191CA4F6E40034BC8D /* Info.plist */,
+				219007391CA4FF580034BC8D /* Database (Local Cache) */,
+				219007081CA4F6E40034BC8D /* Supporting Files */,
+			);
+			path = BTCloudKitSyncDemo;
+			sourceTree = "<group>";
+		};
+		219007081CA4F6E40034BC8D /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				219007091CA4F6E40034BC8D /* main.m */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		2190071F1CA4F8DB0034BC8D /* BGCloudKitSync */ = {
+			isa = PBXGroup;
+			children = (
+				219007201CA4F8FC0034BC8D /* BTCloudKitSync.h */,
+				219007211CA4F8FC0034BC8D /* BTCloudKitSync.m */,
+				219007221CA4F8FC0034BC8D /* BTCloudKitSyncConstants.h */,
+			);
+			name = BGCloudKitSync;
+			sourceTree = "<group>";
+		};
+		2190072E1CA4FA8D0034BC8D /* Frameworks and Libraries */ = {
+			isa = PBXGroup;
+			children = (
+				219007311CA4FAB10034BC8D /* CloudKit.framework */,
+				219007331CA4FABA0034BC8D /* QuartzCore.framework */,
+				2190072F1CA4FAAA0034BC8D /* libsqlite3.tbd */,
+			);
+			name = "Frameworks and Libraries";
+			sourceTree = "<group>";
+		};
+		219007391CA4FF580034BC8D /* Database (Local Cache) */ = {
+			isa = PBXGroup;
+			children = (
+				2190072B1CA4FA5D0034BC8D /* BTDB.h */,
+				2190072C1CA4FA5D0034BC8D /* BTDB.m */,
+				219007361CA4FF470034BC8D /* BTContact.h */,
+				219007371CA4FF470034BC8D /* BTContact.m */,
+				219007251CA4F9B00034BC8D /* BTContactChange.h */,
+				219007261CA4F9B00034BC8D /* BTContactChange.m */,
+			);
+			name = "Database (Local Cache)";
+			sourceTree = "<group>";
+		};
+		2190073A1CA500A80034BC8D /* Third Party Classes */ = {
+			isa = PBXGroup;
+			children = (
+				2190073B1CA500BE0034BC8D /* FMDB */,
+				2190073C1CA500C40034BC8D /* SVProgressHUD */,
+			);
+			name = "Third Party Classes";
+			sourceTree = "<group>";
+		};
+		2190073B1CA500BE0034BC8D /* FMDB */ = {
+			isa = PBXGroup;
+			children = (
+				2190073D1CA5011C0034BC8D /* FMDatabase.h */,
+				2190073E1CA5011C0034BC8D /* FMDatabase.m */,
+				2190073F1CA5011C0034BC8D /* FMDatabaseAdditions.h */,
+				219007401CA5011C0034BC8D /* FMDatabaseAdditions.m */,
+				219007411CA5011C0034BC8D /* FMDatabasePool.h */,
+				219007421CA5011C0034BC8D /* FMDatabasePool.m */,
+				219007431CA5011C0034BC8D /* FMDatabaseQueue.h */,
+				219007441CA5011C0034BC8D /* FMDatabaseQueue.m */,
+				219007451CA5011C0034BC8D /* FMDB.h */,
+				219007461CA5011C0034BC8D /* FMResultSet.h */,
+				219007471CA5011C0034BC8D /* FMResultSet.m */,
+			);
+			name = FMDB;
+			sourceTree = "<group>";
+		};
+		2190073C1CA500C40034BC8D /* SVProgressHUD */ = {
+			isa = PBXGroup;
+			children = (
+				2190074D1CA501360034BC8D /* SVIndefiniteAnimatedView.h */,
+				2190074E1CA501360034BC8D /* SVIndefiniteAnimatedView.m */,
+				2190074F1CA501360034BC8D /* SVProgressHUD-Prefix.pch */,
+				219007501CA501360034BC8D /* SVProgressHUD.bundle */,
+				219007511CA501360034BC8D /* SVProgressHUD.h */,
+				219007521CA501360034BC8D /* SVProgressHUD.m */,
+				219007531CA501360034BC8D /* SVRadialGradientLayer.h */,
+				219007541CA501360034BC8D /* SVRadialGradientLayer.m */,
+			);
+			name = SVProgressHUD;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		219007041CA4F6E40034BC8D /* BTCloudKitSyncDemo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2190071C1CA4F6E40034BC8D /* Build configuration list for PBXNativeTarget "BTCloudKitSyncDemo" */;
+			buildPhases = (
+				219007011CA4F6E40034BC8D /* Sources */,
+				219007021CA4F6E40034BC8D /* Frameworks */,
+				219007031CA4F6E40034BC8D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BTCloudKitSyncDemo;
+			productName = BTCloudKitSyncDemo;
+			productReference = 219007051CA4F6E40034BC8D /* BTCloudKitSyncDemo.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		219006FD1CA4F6E40034BC8D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0730;
+				ORGANIZATIONNAME = YourCompany;
+				TargetAttributes = {
+					219007041CA4F6E40034BC8D = {
+						CreatedOnToolsVersion = 7.3;
+						DevelopmentTeam = NPS4BX56H3;
+					};
+				};
+			};
+			buildConfigurationList = 219007001CA4F6E40034BC8D /* Build configuration list for PBXProject "BTCloudKitSyncDemo" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 219006FC1CA4F6E40034BC8D;
+			productRefGroup = 219007061CA4F6E40034BC8D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				219007041CA4F6E40034BC8D /* BTCloudKitSyncDemo */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		219007031CA4F6E40034BC8D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				219007181CA4F6E40034BC8D /* LaunchScreen.storyboard in Resources */,
+				219007151CA4F6E40034BC8D /* Assets.xcassets in Resources */,
+				219007131CA4F6E40034BC8D /* Main.storyboard in Resources */,
+				219007561CA501360034BC8D /* SVProgressHUD.bundle in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		219007011CA4F6E40034BC8D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				219007291CA4F9B00034BC8D /* BTContactChange.m in Sources */,
+				219007551CA501360034BC8D /* SVIndefiniteAnimatedView.m in Sources */,
+				219007231CA4F8FC0034BC8D /* BTCloudKitSync.m in Sources */,
+				219007571CA501360034BC8D /* SVProgressHUD.m in Sources */,
+				219007581CA501360034BC8D /* SVRadialGradientLayer.m in Sources */,
+				2190070D1CA4F6E40034BC8D /* AppDelegate.m in Sources */,
+				2190072A1CA4F9B00034BC8D /* BTTableViewController.m in Sources */,
+				2190070A1CA4F6E40034BC8D /* main.m in Sources */,
+				219007491CA5011C0034BC8D /* FMDatabaseAdditions.m in Sources */,
+				2190074C1CA5011C0034BC8D /* FMResultSet.m in Sources */,
+				2190072D1CA4FA5D0034BC8D /* BTDB.m in Sources */,
+				2190074A1CA5011C0034BC8D /* FMDatabasePool.m in Sources */,
+				2190074B1CA5011C0034BC8D /* FMDatabaseQueue.m in Sources */,
+				219007381CA4FF470034BC8D /* BTContact.m in Sources */,
+				219007481CA5011C0034BC8D /* FMDatabase.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		219007111CA4F6E40034BC8D /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				219007121CA4F6E40034BC8D /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		219007161CA4F6E40034BC8D /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				219007171CA4F6E40034BC8D /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		2190071A1CA4F6E40034BC8D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.3;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		2190071B1CA4F6E40034BC8D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.3;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		2190071D1CA4F6E40034BC8D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BTCloudKitSyncDemo/BTCloudKitSyncDemo.entitlements;
+				INFOPLIST_FILE = BTCloudKitSyncDemo/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.BTCloudKitSyncDemo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		2190071E1CA4F6E40034BC8D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BTCloudKitSyncDemo/BTCloudKitSyncDemo.entitlements;
+				INFOPLIST_FILE = BTCloudKitSyncDemo/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.BTCloudKitSyncDemo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		219007001CA4F6E40034BC8D /* Build configuration list for PBXProject "BTCloudKitSyncDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2190071A1CA4F6E40034BC8D /* Debug */,
+				2190071B1CA4F6E40034BC8D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2190071C1CA4F6E40034BC8D /* Build configuration list for PBXNativeTarget "BTCloudKitSyncDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2190071D1CA4F6E40034BC8D /* Debug */,
+				2190071E1CA4F6E40034BC8D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 219006FD1CA4F6E40034BC8D /* Project object */;
+}
