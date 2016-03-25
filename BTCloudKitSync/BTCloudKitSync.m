@@ -102,13 +102,13 @@
 		
 		if (enableSync) {
 			// Enable sync
-			//	1.	Fetch record zones and make sure that the Contacts Zone is created
-			//	2.	Create the contacts zone if it's not already created
-			//	3.	Register for silent notifications to receive server changes (CKSubscription)
-			//	4.  Add change observers
-			//	5.	Tell our local database to insert all existing records into the
-			//		changelog table(s) so local changes will be picked up during
-			//		syncs
+			//	1.	Set up the CKRecordZone(s)
+			//	2.	Set up the subscription(s), needed for silent notifications
+			//		to be received.
+			//	3.  Add change observers to receive notifications when the local
+			//		database changes records.
+			//	4.	Tell the local database to track local changes
+			//	5.	Kick off a sync to push the local records to CloudKit
 			NSOperationQueue *queue = [NSOperationQueue new];
 			queue.name = @"enableSyncQueue";
 			queue.qualityOfService = NSQualityOfServiceUtility;
@@ -128,6 +128,7 @@
 			[fetchSubOp addDependency:modifyRecordZonesOp];
 			[modifySubsOp addDependency:fetchSubOp];
 			
+			//	1.	Set up the CKRecordZone(s)
 			__block BOOL hasCreatedRecordZone = NO;
 			NSString *recordZoneName = [_localDatabase recordZoneName];
 			CKRecordZoneID *zoneID = [[CKRecordZoneID alloc] initWithZoneName:recordZoneName ownerName:CKOwnerDefaultName];
@@ -170,7 +171,7 @@
 				}
 			};
 			
-			// 1. Register for CKSubscription
+			//	2.	Set up the subscription(s)
 			
 			NSString *subscriptionID = [recordZoneName stringByAppendingString:@"Subscription"];
 			
@@ -232,10 +233,10 @@
 			[[NSUserDefaults standardUserDefaults] setBool:enableSync forKey:kBTCloudKitSyncSettingSyncEnabledKey];
 			[[NSUserDefaults standardUserDefaults] synchronize];
 			
-			// 2. Register observers
+			//	3.  Add change observers to receive notifications when the local
 			[self _observeLocalDatabaseChanges:YES];
 			
-			// 3. Prep to track changes
+			//	4.	Tell the local database to track local changes
 			__block BOOL shouldReturn = NO;
 			[[_localDatabase recordTypes] enumerateObjectsUsingBlock:^(NSString * _Nonnull recordType, NSUInteger idx, BOOL * _Nonnull stop) {
 				NSError *localDBError = nil;
@@ -257,6 +258,7 @@
 				return;
 			}
 			
+			//	5.	Kick off a sync to push the local records to CloudKit
 			// Kick off a sync by faking a change notification. This will go through the
 			// timer system and delay by X seconds (which will allow startup of the app
 			// to run smoothly).
@@ -264,17 +266,17 @@
 			[[NSNotificationCenter defaultCenter] postNotificationName:notificationName object:self];
 		} else {
 			// Disable sync
-			//	1.	Stop observing changelog table changes
-			//	2.	Delete all records from changelog database table(s) so that the
+			//	1.	Stop observing local database changes
+			//	2.	Tell local database to purge local changes so it doesn't
+			//		consume extra space
 			//		app is not taking extra space
-			//	3.	Update the app preference so that we don't try to sync on
-			//		changes.
-			//	4.	Remove the saved server token if one exists
+			//	3.	Delete CKRecord system fields
+			//	4.	Reset sync keys saved in NSUserDefaults
 			
-			// 1. Remove observers
+			//	1.	Stop observing local database changes
 			[self _observeLocalDatabaseChanges:NO];
 			
-			// 2. Delete all records from the changelog db table
+			//	2.	Purge local changes
 			__block BOOL shouldReturn = NO;
 			[[_localDatabase recordTypes] enumerateObjectsUsingBlock:^(NSString * _Nonnull recordType, NSUInteger idx, BOOL * _Nonnull stop) {
 				NSError *dbError = nil;
@@ -296,7 +298,7 @@
 				return;
 			}
 			
-			// Purge the sync data (CKRecord system fields)
+			//	3.	Delete CKRecord system fields
 			NSError *dbError = nil;
 			if ([_localDatabase purgeAllSystemFieldsWithError:&dbError] == NO) {
 				NSError *error = [NSError errorWithDomain:BTCloudKitSyncErrorDomain
@@ -309,6 +311,7 @@
 				return;
 			}
 			
+			//	4.	Reset sync keys saved in NSUserDefaults
 			[[NSUserDefaults standardUserDefaults] setBool:enableSync forKey:kBTCloudKitSyncSettingSyncEnabledKey];
 			[[NSUserDefaults standardUserDefaults] removeObjectForKey:kBTCloudKitSyncSettingLastSyncDateKey];
 			[[NSUserDefaults standardUserDefaults] removeObjectForKey:kBTCloudKitSyncServerChangeTokenKey];
