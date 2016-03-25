@@ -209,10 +209,10 @@
 			modifySubsOp.modifySubscriptionsCompletionBlock = ^( NSArray <CKSubscription *> *savedSubscriptions, NSArray <NSString *> *deletedSubscriptionIDs, NSError *operationError) {
 				if (modifySubsOp.cancelled == NO) {
 					if (operationError) {
-						NSLog(@"Error creating the subscription for contact changes: %@", operationError);
+						NSLog(@"Error creating the subscription for record changes: %@", operationError);
 						if (operationError) {
 							dispatch_async(dispatch_get_main_queue(), ^{
-								completion(NO, [NSError errorWithDomain:BTCloudKitSyncErrorDomain code:-1 userInfo:@{NSLocalizedDescriptionKey:@"Error creating CKSubscription for contact changes.",
+								completion(NO, [NSError errorWithDomain:BTCloudKitSyncErrorDomain code:-1 userInfo:@{NSLocalizedDescriptionKey:@"Error creating CKSubscription for record changes.",
 																															  NSUnderlyingErrorKey:operationError.localizedDescription}]);
 							});
 						}
@@ -327,6 +327,9 @@
 
 - (void)performSyncWithCompletion:(void(^)(BOOL success, NSError *error))completion
 {
+	// The general recipe for this method is to:
+	//	1.	Push local changes
+	//	2.	Pull server changes
 	if (self.syncEnabled == NO) {
 		completion(NO, [NSError errorWithDomain:BTCloudKitSyncErrorDomain code:-1 userInfo:@{NSLocalizedDescriptionKey:@"Attempted to sync with sync currently disabled."}]);
 		return;
@@ -597,15 +600,14 @@
 				}
 			}
 			
-			BOOL addContact = NO;
+			BOOL addRecord = NO;
 			NSMutableDictionary *mutableRecordInfo = nil;
 			NSDictionary *recordInfo = [_localDatabase infoForRecordType:record.recordType withIdentifier:record.recordID.recordName error:nil];
 			if (recordInfo == nil) {
-				// This is a new contact
-				addContact = YES;
+				// This is a new record
+				addRecord = YES;
 				
 				mutableRecordInfo = [NSMutableDictionary new];
-//				contact.identifier = record.recordID.recordName;
 			} else {
 				mutableRecordInfo = [NSMutableDictionary dictionaryWithDictionary:recordInfo];
 			}
@@ -615,7 +617,7 @@
 			}];
 			
 			NSError *error = nil;
-			if (addContact) {
+			if (addRecord) {
 				if ([_localDatabase addRecordInfo:mutableRecordInfo withRecordType:record.recordType withIdentifier:record.recordID.recordName error:&error] == NO) {
 					// TO-DO: Figure out how to properly handle this error
 					NSLog(@"Error adding a record fetched from the server: %@", error);
@@ -649,7 +651,7 @@
 			if (error) {
 				// If there was an error deleting, not sure what to do, but it
 				// may not be crucial.
-				NSLog(@"Error deleting a contact while fetching server changes: %@", recordID.recordName);
+				NSLog(@"Error deleting a record while fetching server changes: %@", recordID.recordName);
 			}
 		};
 		
