@@ -19,6 +19,7 @@ There are a number of things that are not yet implemented in BTCloudKitSync:
   * Somehow issue another CKFetchRecordsOperation (perhaps just call performSync: again?)
 * Add code to automatically delete CKRecordZones that are not being used (in case the definition provided by BTCloudKitSyncDatabase changes)
 * Add code to automatically delete unused CKSubscriptions (could happen if the developer changes what BTCloudKitSyncDatabase provides)
+* Add an app icon for the BTCloudKitSyncDemo app
 
 ## Overview
 
