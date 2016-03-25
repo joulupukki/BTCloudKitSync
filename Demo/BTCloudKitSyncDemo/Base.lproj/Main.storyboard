@@ -5,10 +5,10 @@
         <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="10085"/>
     </dependencies>
     <scenes>
-        <!--CloudBook-->
+        <!--BTCloudKitSync Demo-->
         <scene sceneID="NR2-3f-kRl">
             <objects>
-                <tableViewController id="Jjv-29-ntg" customClass="CloudBookTableViewController" sceneMemberID="viewController">
+                <tableViewController id="Jjv-29-ntg" customClass="BTTableViewController" sceneMemberID="viewController">
                     <tableView key="view" clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="grouped" separatorStyle="default" rowHeight="44" sectionHeaderHeight="18" sectionFooterHeight="18" id="ZF1-xE-L3E">
                         <rect key="frame" x="0.0" y="0.0" width="600" height="600"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
@@ -44,7 +44,7 @@
                             <outlet property="delegate" destination="Jjv-29-ntg" id="ZQP-yn-qy1"/>
                         </connections>
                     </tableView>
-                    <navigationItem key="navigationItem" title="CloudBook" id="dsh-T1-ble"/>
+                    <navigationItem key="navigationItem" title="BTCloudKitSync Demo" id="dsh-T1-ble"/>
                 </tableViewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="HSL-zp-u09" userLabel="First Responder" sceneMemberID="firstResponder"/>
             </objects>
