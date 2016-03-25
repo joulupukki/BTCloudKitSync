@@ -1,9 +1,27 @@
 # BTCloudKitSync
+
 A class that provides simple [CloudKit](https://developer.apple.com/icloud/) sync for iOS apps with a local cache/database.
 
 The purpose of BTCloudKitSync is to add sync a local cache of data through a private CloudKit database ([CKDatabase](https://developer.apple.com/library/ios/documentation/CloudKit/Reference/CloudKit_Framework_Reference/index.html)).
 
-## WORK IN PROGRESS (ITEMS TO-DO)
+## Background
+
+I started this project to learn how CloudKit works before adding sync it to my own [Bluegrass Guru](http://bluegrassguru.com/) app. After spending the time getting a sample app working with Cloud Kit (the BTCloudKitSyncDemo app), I realized I would have to add in a *lot* of code to make Bluegrass Guru sync its records.
+
+I wondered if it was possible to abstract the sync code to make it easy to add sync to Bluegrass Guru and that's where BTCloudKitSync popped into my head. So far, it seems like it will work for what I need.
+
+In Bluegrass Guru, I sync songs, tags, and set lists between a user's iOS devices. Other apps may have more complicated database and sync requirements, so BTCloudKitSync may not be the answer, but hopefully something in this project helps you answer some questions about how CloudKit works.
+
+## Contributing to BTCloudKitSync
+
+There are still a number of things to solve in BTCloudKitSync. If you'd like to help make BTCloudKitSync more robust, please submit pull requests.
+
+If you'd like to get involved or have general questions, please feel free to contact me:
+
+Twitter: [@bhtimothy](https://twitter.com/bhtimothy)
+
+
+## THIS IS A WORK IN PROGRESS (ITEMS TO-DO)
 
 There are a number of things that are not yet implemented in BTCloudKitSync:
 
