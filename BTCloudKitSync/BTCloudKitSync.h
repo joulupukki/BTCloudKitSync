@@ -46,6 +46,12 @@ typedef enum : NSInteger {
 	BTCloudKitSyncErrorPurgeSystemFields		= 8, // The localDatabase could not purge system fields.
 } BTCloudKitSyncErrorCode;
 
+typedef enum : NSUInteger {
+	BTFetchResultNewData,
+	BTFetchResultNoData,
+	BTFetchResultFailed
+} BTFetchResult;
+
 @protocol BTCloudKitSyncDatabase;
 
 #pragma mark - BTCloudKitSync
@@ -80,6 +86,15 @@ typedef enum : NSInteger {
 
 
 - (void)performSyncWithCompletion:(void(^)(BOOL success, NSError *error))completion;
+
+/**
+ Fetch changes from CloudKit until all changes are fetched properly. This uses
+ CKFetchRecordChangesOperation, which reports moreComing if all the changes are
+ not able to be fetched in one shot.
+ */
+
+- (void)fetchRecordChangesWithCompletionHandler:(void (^)(BTFetchResult result, BOOL moreComing))completionHandler;
+
 @end
 
 #pragma mark - BTCloudKitSyncDatabase Protocol

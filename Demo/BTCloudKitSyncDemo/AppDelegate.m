@@ -107,12 +107,19 @@
 		return;
 	}
 	
-	[sync performSyncWithCompletion:^(BOOL success, NSError *error) {
-		if (success) {
-			completionHandler(UIBackgroundFetchResultNewData);
-		} else {
-			NSLog(@"Sync failed: %@", error);
-			completionHandler(UIBackgroundFetchResultFailed);
+	[sync fetchRecordChangesWithCompletionHandler:^(BTFetchResult result, BOOL moreComing) {
+		if (moreComing == NO) {
+			switch (result) {
+				case BTFetchResultNewData:
+					completionHandler(UIBackgroundFetchResultNewData);
+					break;
+				case BTFetchResultNoData:
+					completionHandler(UIBackgroundFetchResultNoData);
+					break;
+				case BTFetchResultFailed:
+					completionHandler(UIBackgroundFetchResultFailed);
+					break;
+			}
 		}
 	}];
 }

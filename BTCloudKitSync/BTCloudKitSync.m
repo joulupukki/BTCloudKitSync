@@ -544,116 +544,14 @@
 				}
 			}
 		};
-
-		CKServerChangeToken *serverChangeToken = nil;
-		NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:kBTCloudKitSyncServerChangeTokenKey];
-		if (data) {
-			serverChangeToken = [NSKeyedUnarchiver unarchiveObjectWithData:data];
-		}
 		
-		CKFetchRecordChangesOperation *fetchChangesOp = [[CKFetchRecordChangesOperation alloc] initWithRecordZoneID:zoneID previousServerChangeToken:serverChangeToken];
-		fetchChangesOp.database = _privateDB;
-		[operationsA addObject:fetchChangesOp];
+		NSBlockOperation *fetchChangesOp = [NSBlockOperation blockOperationWithBlock:^{
+			[self fetchRecordChangesWithCompletionHandler:nil];
+		}];
 		if (modifyRecordsOp) {
 			[fetchChangesOp addDependency:modifyRecordsOp];
 		}
-		fetchChangesOp.fetchRecordChangesCompletionBlock = ^(CKServerChangeToken *serverChangeToken, NSData *clientChangeTokenData, NSError *operationError) {
-			if (fetchChangesOp.cancelled == NO) {
-				if (operationError != nil) {
-					[queue cancelAllOperations];
-					syncSuccessful = NO;
-					syncError = [NSError errorWithDomain:BTCloudKitSyncErrorDomain code:-1 userInfo:@{NSLocalizedDescriptionKey:@"Could not fetch server changes.",
-																											   NSUnderlyingErrorKey: operationError}];
-					@synchronized (self) {
-						_isSynchronizing = NO;
-					}
-					dispatch_async(dispatch_get_main_queue(), ^{
-						completion(NO, syncError);
-					});
-				} else {
-					NSData *encodedServerChangeToken = [NSKeyedArchiver archivedDataWithRootObject:serverChangeToken];
-					[[NSUserDefaults standardUserDefaults] setObject:encodedServerChangeToken forKey:kBTCloudKitSyncServerChangeTokenKey];
-					[[NSUserDefaults standardUserDefaults] setObject:[NSDate date] forKey:kBTCloudKitSyncSettingLastSyncDateKey];
-					[[NSUserDefaults standardUserDefaults] synchronize];
-					
-					if (fetchChangesOp.moreComing == YES) {
-						// TO-DO: Figure out how to issue another fetch operation
-//						fetchChangesOp = [self _configureFetchChangesOp];
-//						[queue addOperation:fetchChangesOp];
-					}
-				}
-			}
-		};
-		fetchChangesOp.recordChangedBlock = ^(CKRecord *record) {
-			
-			// First check to see if the local record already matches and if
-			// it does, do nothing.
-			NSData *systemFields = [_localDatabase systemFieldsDataForRecordWithIdentifier:record.recordID.recordName error:nil];
-			if (systemFields) {
-				NSKeyedUnarchiver *archiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:systemFields];
-				archiver.requiresSecureCoding = YES;
-				CKRecord *localRecord = [[CKRecord alloc] initWithCoder:archiver];
-				if ([localRecord.recordChangeTag isEqualToString:record.recordChangeTag]) {
-					// The record in the database is already the same and does
-					// not need to be changed or updated.
-					return;
-				}
-			}
-			
-			BOOL addRecord = NO;
-			NSMutableDictionary *mutableRecordInfo = nil;
-			NSDictionary *recordInfo = [_localDatabase infoForRecordType:record.recordType withIdentifier:record.recordID.recordName error:nil];
-			if (recordInfo == nil) {
-				// This is a new record
-				addRecord = YES;
-				
-				mutableRecordInfo = [NSMutableDictionary new];
-			} else {
-				mutableRecordInfo = [NSMutableDictionary dictionaryWithDictionary:recordInfo];
-			}
-			
-			[[record allKeys] enumerateObjectsUsingBlock:^(NSString * _Nonnull key, NSUInteger idx, BOOL * _Nonnull stop) {
-				mutableRecordInfo[key] = record[key];
-			}];
-			
-			NSError *error = nil;
-			if (addRecord) {
-				if ([_localDatabase addRecordInfo:mutableRecordInfo withRecordType:record.recordType withIdentifier:record.recordID.recordName error:&error] == NO) {
-					// TO-DO: Figure out how to properly handle this error
-					NSLog(@"Error adding a record fetched from the server: %@", error);
-				}
-			} else {
-				if ([_localDatabase updateRecordInfo:mutableRecordInfo withRecordType:record.recordType withIdentifier:record.recordID.recordName error:&error] == NO) {
-					// TO-DO: Figure out how to properly handle this error
-					NSLog(@"Error updating a record fetched from the server: %@", error);
-				}
-			}
-			
-			// Save off the system fields of the CKRecord so that future updates
-			// will work properly.
-			NSMutableData *archivedData = [NSMutableData new];
-			NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initForWritingWithMutableData:archivedData];
-			archiver.requiresSecureCoding = YES;
-			[record encodeSystemFieldsWithCoder:archiver];
-			[archiver finishEncoding];
-			
-			NSString *identifier = record.recordID.recordName;
-			NSError *dbError = nil;
-			if ([_localDatabase saveSystemFieldsData:archivedData withIdentifier:identifier error:&dbError] == NO) {
-				// TO-DO: Figure out what to do about this error (shouldn't ever happen)
-				NSLog(@"Unable to save archived system fields: %@", dbError);
-			}
-			
-		};
-		fetchChangesOp.recordWithIDWasDeletedBlock = ^(CKRecordID *recordID) {
-			NSError *error = nil;
-			[_localDatabase deleteRecordWithIdentifier:recordID.recordName error:&error];
-			if (error) {
-				// If there was an error deleting, not sure what to do, but it
-				// may not be crucial.
-				NSLog(@"Error deleting a record while fetching server changes: %@", recordID.recordName);
-			}
-		};
+		[operationsA addObject:fetchChangesOp];
 		
 		[queue addOperations:operationsA waitUntilFinished:YES];
 		
@@ -680,6 +578,19 @@
 			});
 		}
 	});
+}
+
+
+- (void)fetchRecordChangesWithCompletionHandler:(void (^)(BTFetchResult result, BOOL moreComing))completionHandler
+{
+	CKServerChangeToken *serverChangeToken = nil;
+	NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:kBTCloudKitSyncServerChangeTokenKey];
+	if (data) {
+		serverChangeToken = [NSKeyedUnarchiver unarchiveObjectWithData:data];
+	}
+	
+	[self _fetchRecordChangesWithServerChangeToken:serverChangeToken
+								 completionHandler:completionHandler];
 }
 
 #pragma mark - Custom Properties
@@ -849,4 +760,133 @@
 	return YES;
 }
 
+- (void)_fetchRecordChangesWithServerChangeToken:(CKServerChangeToken *)serverChangeToken
+							   completionHandler:(void (^)(BTFetchResult result, BOOL moreComing))completionHandler
+{
+	__block BOOL recordsWereDeleted = NO;
+	__block BOOL recordsWereModified = NO;
+	
+	NSString *recordZoneName = [_localDatabase recordZoneName];
+	CKRecordZoneID *zoneID = [[CKRecordZoneID alloc] initWithZoneName:recordZoneName ownerName:CKOwnerDefaultName];
+	
+	CKFetchRecordChangesOperation *fetchChangesOp = [[CKFetchRecordChangesOperation alloc] initWithRecordZoneID:zoneID previousServerChangeToken:serverChangeToken];
+	__weak CKFetchRecordChangesOperation *weakFetchChangesOp = fetchChangesOp;
+	fetchChangesOp.database = _privateDB;
+	fetchChangesOp.fetchRecordChangesCompletionBlock = ^(CKServerChangeToken *newServerChangeToken, NSData *clientChangeTokenData, NSError *operationError) {
+		if (weakFetchChangesOp.cancelled == NO) {
+			if (operationError) {
+				
+			} else if (!recordsWereDeleted && !recordsWereModified && !weakFetchChangesOp.moreComing) {
+				[self _saveServerChangeToken:newServerChangeToken];
+				if (completionHandler) {
+					completionHandler(BTFetchResultNoData, NO);
+				}
+			} else { // if (recordsWereDeleted || recordsWereModified || moreComing)
+				[self _saveServerChangeToken:newServerChangeToken];
+				
+				if (completionHandler) {
+					if (recordsWereDeleted || recordsWereModified) {
+						completionHandler(BTFetchResultNewData, weakFetchChangesOp.moreComing);
+					} else {
+						completionHandler(BTFetchResultNoData, weakFetchChangesOp.moreComing);
+					}
+				}
+				
+				if (weakFetchChangesOp.moreComing) {
+					[self _fetchRecordChangesWithServerChangeToken:newServerChangeToken
+												 completionHandler:completionHandler];
+				}
+			}
+		}
+	};
+	fetchChangesOp.recordChangedBlock = ^(CKRecord *record) {
+		
+		// First check to see if the local record already matches and if
+		// it does, do nothing.
+		NSData *systemFields = [_localDatabase systemFieldsDataForRecordWithIdentifier:record.recordID.recordName error:nil];
+		if (systemFields) {
+			NSKeyedUnarchiver *archiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:systemFields];
+			archiver.requiresSecureCoding = YES;
+			CKRecord *localRecord = [[CKRecord alloc] initWithCoder:archiver];
+			if ([localRecord.recordChangeTag isEqualToString:record.recordChangeTag]) {
+				// The record in the database is already the same and does
+				// not need to be changed or updated.
+				return;
+			}
+		}
+		
+		BOOL addRecord = NO;
+		NSMutableDictionary *mutableRecordInfo = nil;
+		NSDictionary *recordInfo = [_localDatabase infoForRecordType:record.recordType withIdentifier:record.recordID.recordName error:nil];
+		if (recordInfo == nil) {
+			// This is a new record
+			addRecord = YES;
+			
+			mutableRecordInfo = [NSMutableDictionary new];
+		} else {
+			mutableRecordInfo = [NSMutableDictionary dictionaryWithDictionary:recordInfo];
+		}
+		
+		[[record allKeys] enumerateObjectsUsingBlock:^(NSString * _Nonnull key, NSUInteger idx, BOOL * _Nonnull stop) {
+			mutableRecordInfo[key] = record[key];
+		}];
+		
+		NSError *error = nil;
+		if (addRecord) {
+			if ([_localDatabase addRecordInfo:mutableRecordInfo withRecordType:record.recordType withIdentifier:record.recordID.recordName error:&error] == NO) {
+				// TO-DO: Figure out how to properly handle this error
+				NSLog(@"Error adding a record fetched from the server: %@", error);
+			} else {
+				recordsWereModified = YES;
+			}
+		} else {
+			if ([_localDatabase updateRecordInfo:mutableRecordInfo withRecordType:record.recordType withIdentifier:record.recordID.recordName error:&error] == NO) {
+				// TO-DO: Figure out how to properly handle this error
+				NSLog(@"Error updating a record fetched from the server: %@", error);
+			} else {
+				recordsWereModified = YES;
+			}
+		}
+		
+		// Save off the system fields of the CKRecord so that future updates
+		// will work properly.
+		NSMutableData *archivedData = [NSMutableData new];
+		NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initForWritingWithMutableData:archivedData];
+		archiver.requiresSecureCoding = YES;
+		[record encodeSystemFieldsWithCoder:archiver];
+		[archiver finishEncoding];
+		
+		NSString *identifier = record.recordID.recordName;
+		NSError *dbError = nil;
+		if ([_localDatabase saveSystemFieldsData:archivedData withIdentifier:identifier error:&dbError] == NO) {
+			// TO-DO: Figure out what to do about this error (shouldn't ever happen)
+			NSLog(@"Unable to save archived system fields: %@", dbError);
+		}
+		
+	};
+	fetchChangesOp.recordWithIDWasDeletedBlock = ^(CKRecordID *recordID) {
+		NSError *error = nil;
+		[_localDatabase deleteRecordWithIdentifier:recordID.recordName error:&error];
+		if (error) {
+			// If there was an error deleting, not sure what to do, but it
+			// may not be crucial.
+			NSLog(@"Error deleting a record while fetching server changes: %@", recordID.recordName);
+		} else {
+			recordsWereDeleted = YES;
+		}
+	};
+	
+	NSOperationQueue *queue = [NSOperationQueue new];
+	queue.name = @"fetchRecordChangesQueue";
+	queue.qualityOfService = NSQualityOfServiceUtility;
+	
+	[queue addOperation:fetchChangesOp];
+}
+
+- (void)_saveServerChangeToken:(CKServerChangeToken *)serverChangeToken
+{
+	NSData *encodedServerChangeToken = [NSKeyedArchiver archivedDataWithRootObject:serverChangeToken];
+	[[NSUserDefaults standardUserDefaults] setObject:encodedServerChangeToken forKey:kBTCloudKitSyncServerChangeTokenKey];
+	[[NSUserDefaults standardUserDefaults] synchronize];
+}
 @end
