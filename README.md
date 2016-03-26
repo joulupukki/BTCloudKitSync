@@ -23,21 +23,7 @@ Twitter: [@bhtimothy](https://twitter.com/bhtimothy)
 
 ## THIS IS A WORK IN PROGRESS (ITEMS TO-DO)
 
-There are a number of things that are not yet implemented in BTCloudKitSync:
-
-* Robust CloudKit Error Handling
-* Still need to figure out how to deal with a server busy error
-* When uploading CKRecord objects, it's possible that CloudKit will respond with CKErrorLimitExceeded. The code should chop the batch in half and upload the changes separately (and presumably this could happen again for each of the smaller batches)
-* Figure out how to deal with CKErrorBatchRequestFailed
-* Figure out how to deal with CKErrorQuotaExceeded
-* Add conflict resolution during uploads
-  * Check for CKErrorServerRecordChanged and figure out what the best policy is for changes. Should client always win? Use the keys here to get the records involved in the conflict: <https://developer.apple.com/library/ios/documentation/CloudKit/Reference/CloudKit_constants/index.html#//apple_ref/doc/constant_group/Record_Changed_Error_Keys>
-  * Figure out how to resend the resolved items. I think you use CKRecordChangedErrorServerRecordKey (the CKRecord that currently exists on the server), make any field changes to it, save the changes locally to match, and then push these changes to the server. The trick is how to instrument this as part of the initial push of local changes
-* Add handling for CKFetchRecordsOperation's moreComing feature
-  * Somehow issue another CKFetchRecordsOperation (perhaps just call performSync: again?)
-* Add code to automatically delete CKRecordZones that are not being used (in case the definition provided by BTCloudKitSyncDatabase changes)
-* Add code to automatically delete unused CKSubscriptions (could happen if the developer changes what BTCloudKitSyncDatabase provides)
-* Add an app icon for the BTCloudKitSyncDemo app
+There are a number of things that are not yet implemented in BTCloudKitSync. Check the **[Issues](https://github.com/joulupukki/BTCloudKitSync/issues)** tab to see the list of remaining items.
 
 ## Overview
 
