@@ -324,12 +324,17 @@
 
 #pragma mark - Change Log
 
-- (NSArray<BTContactChange *> *)contactChangesBeforeDate:(NSDate *)date
+- (NSArray<BTContactChange *> *)contactChangesBeforeDate:(NSDate *)date limit:(NSUInteger)limit
 {
 	NSMutableDictionary<NSString *, BTContactChange *> *changes = [NSMutableDictionary new];
 	[_dbQueue inDatabase:^(FMDatabase *db) {
 		//identifier,first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp
-		FMResultSet *rs = [db executeQuery:@"SELECT identifier,first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp FROM contacts_changelog ORDER BY timestamp ASC"];
+		NSMutableString *sql = [[NSMutableString alloc] initWithString:@"SELECT identifier,first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp FROM contacts_changelog ORDER BY timestamp ASC"];
+		if (limit > 0) {
+			[sql appendFormat:@" LIMIT %lu", (unsigned long)limit];
+		}
+		
+		FMResultSet *rs = [db executeQuery:sql];
 		if (rs) {
 			while ([rs next]) {
 				NSString *identifier = [rs stringForColumn:@"identifier"];
@@ -671,7 +676,7 @@
 }
 
 
-- (NSArray<NSDictionary *> *)recordChangesOfType:(NSString *)recordType beforeDate:(NSDate *)date error:(NSError **)error
+- (NSArray<NSDictionary *> *)recordChangesOfType:(NSString *)recordType beforeDate:(NSDate *)date limit:(NSUInteger)limit error:(NSError *__autoreleasing *)error
 {
 	if ([recordType isEqualToString:@"Contact"] == NO) {
 		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
@@ -680,7 +685,7 @@
 	
 	NSMutableArray *recordChanges = [NSMutableArray new];
 	
-	NSArray *changes = [self contactChangesBeforeDate:date];
+	NSArray *changes = [self contactChangesBeforeDate:date limit:limit];
 	if (changes) {
 		[changes enumerateObjectsUsingBlock:^(BTContactChange * _Nonnull change, NSUInteger idx, BOOL * _Nonnull stop) {
 			NSMutableDictionary *changeInfo = [NSMutableDictionary new];
@@ -719,6 +724,48 @@
 	}
 	
 	return [self purgeChangesBeforeDate:date error:error];
+}
+
+- (BOOL)purgeRecordChangeWithIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError **)error
+{
+	if (identifier == nil) {
+		if (error) {
+			*error = [NSError errorWithDomain:@"com.bluegrassguru.BTDB" code:-1 userInfo:@{NSLocalizedDescriptionKey:@"purgeRecordChangeWithIdentifier:: sent nil identifier."}];
+		}
+		return NO;
+	}
+	
+	if (date == nil) {
+		if (error) {
+			*error = [NSError errorWithDomain:@"com.bluegrassguru.BTDB" code:-1 userInfo:@{NSLocalizedDescriptionKey:@"purgeRecordChangeWithIdentifier:: sent nil date."}];
+		}
+		return NO;
+	}
+	
+	__block BOOL success = YES;
+	[_dbQueue inTransaction:^(FMDatabase *db, BOOL *rollback) {
+		NSError *dbError = nil;
+		if ([self _enableContactChangeLogging:NO inDatabase:db error:&dbError] == NO) {
+			if (error) {
+				*error = dbError;
+			}
+			*rollback = YES;
+			success = NO;
+			return;
+		}
+		
+		NSString *sql = @"DELETE FROM contacts_changelog WHERE timestamp < ? AND identifier = ?";
+		if ([db executeUpdate:sql, date, identifier] == NO) {
+			if (error) {
+				*error = [db lastError];
+			}
+			*rollback = YES;
+			success = NO;
+			return;
+		}
+	}];
+	
+	return success;
 }
 
 - (BOOL)configureChangeTrackingForRecordType:(NSString *)recordType error:(NSError **)error

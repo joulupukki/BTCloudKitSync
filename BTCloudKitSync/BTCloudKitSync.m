@@ -29,6 +29,44 @@
 @property (nonatomic, assign) CKAccountStatus currentCloudKitStatus;
 @property (nonatomic, assign) BOOL isSynchronizing;
 
+@property (nonatomic, strong) NSOperationQueue *syncQueue;
+
+/**
+ If set to 0, we will ask for ALL changes from the local database. If set to
+ something other than 0, BTCloudKitSync will only ask for this number of local
+ changes to send to CloudKit at a time. This is a way for the implementation of
+ BTCloudKitSyncDatabase to make an intelligent decision about how many records
+ to allow at a time. Theoretically, if _ALL_ changes would be sent at once, it
+ could consume too much memory. Depending on the data being sent and possibly
+ during a first sync, this could be too much.
+ */
+@property (nonatomic, assign) NSUInteger maxLocalChangesToSend;
+
+/**
+ When startSync begins and we fetch local changes to send to the server, record
+ the current time as the currentSyncDate. If CloudKit reports that we have too
+ many records to send, we will use this date to grab half of the current records
+ and restart the CKModifyRecordsOperation with a smaller batch.
+ 
+ The currentBatchSizeToSend will be adjusted to half the current size and
+ BTCloudKitSync will ask for modified records from BTCloudKitSyncDatabase with
+ the limit set to currentBatchSizeToSend. At the successful completion of the
+ current CKModifyRecordsOperation, BTCloudKitSyncDatabase should be asked to
+ purge these changed records by specifying the same limit
+ (currentBatchSizeToSend).
+ */
+@property (nonatomic, strong) NSDate *currentSyncDate;
+
+/**
+ During a CKModifyRecordsOperation, it's possible that CloudKit will report back
+ that there were too many records sent. In this condition, BTCloudKitSync should
+ set this to half the size and retry the CKModifyRecordsOperation with a reduced
+ set of changes.
+ */
+@property (nonatomic, assign) NSUInteger currentBatchSizeToSend;
+
+@property (nonatomic, strong) NSString *currentRecordType;
+
 @end
 
 @implementation BTCloudKitSync
@@ -48,6 +86,10 @@
 - (instancetype)init
 {
 	if (self = [super init]) {
+		_syncQueue = [NSOperationQueue new];
+		_syncQueue.name = @"SyncQueue";
+		_syncQueue.qualityOfService = NSQualityOfServiceUtility;
+		_syncQueue.maxConcurrentOperationCount = 1; // Keep some order to everything
 		
 		[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_iCloudAccountChangedNotification:) name:CKAccountChangedNotification object:nil];
 //		[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_iCloudAccountChangedNotification:) name:NSUbiquityIdentityDidChangeNotification object:nil];
@@ -325,260 +367,344 @@
 }
 
 
-- (void)performSyncWithCompletion:(void(^)(BOOL success, NSError *error))completion
+- (void)startSync
 {
-	// The general recipe for this method is to:
-	//	1.	Push local changes
-	//	2.	Pull server changes
 	if (self.syncEnabled == NO) {
-		completion(NO, [NSError errorWithDomain:BTCloudKitSyncErrorDomain code:-1 userInfo:@{NSLocalizedDescriptionKey:@"Attempted to sync with sync currently disabled."}]);
+		NSLog(@"Attempted to sync with sync currently disabled.");
 		return;
 	}
 	
+	NSError *localDBError = nil;
+	if ([self _isDatabaseValidWithError:&localDBError] == NO) {
+		return;
+	}
+	
+	// If _currentSyncDate is not nil, that means we are already performing a
+	// synchronization and should not start another one.
 	@synchronized (self) {
-		if (_isSynchronizing) {
-			completion(NO, [NSError errorWithDomain:BTCloudKitSyncErrorDomain code:-1 userInfo:@{NSLocalizedDescriptionKey:@"Cannot perform a sync when a sync is already running."}]);
+		if (_currentSyncDate != nil) {
+			NSLog(@"startSync called while a sync is already in progress.");
 			return;
 		}
-		_isSynchronizing = YES;
+		
+		_currentSyncDate = [NSDate date];
 	}
 	
 	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-		
-		dispatch_async(dispatch_get_main_queue(), ^{
-			NSLog(@"Sync Began");
-			[[NSNotificationCenter defaultCenter] postNotificationName:kBTCloudKitSyncBeganNotification object:nil];
-		});
-		
-		__block BOOL syncSuccessful = YES;
-		__block NSError *syncError = nil;
-		
-		NSString *recordZoneName = [_localDatabase recordZoneName];
-		CKRecordZoneID *zoneID = [[CKRecordZoneID alloc] initWithZoneName:recordZoneName ownerName:CKOwnerDefaultName];
-		
-		NSDate *syncDate = [NSDate date];
-		
-		NSMutableArray<CKRecord *> *recordsToSaveA = [NSMutableArray new];
-		NSMutableArray<CKRecordID *> *recordsToDeleteA = [NSMutableArray new];
-		
-		__block BOOL shouldReturn = NO;
-		[[_localDatabase recordTypes] enumerateObjectsUsingBlock:^(NSString * _Nonnull recordType, NSUInteger idx, BOOL * _Nonnull stop) {
-			NSError *dbError = nil;
-			NSArray<NSDictionary *> *recordsA = [_localDatabase recordChangesOfType:recordType beforeDate:syncDate error:&dbError];
-			if (recordsA == nil) {
-				@synchronized (self) {
-					_isSynchronizing = NO;
-				}
-				completion(NO, dbError);
-				shouldReturn = YES;
-				*stop = YES;
-			} else {
-				[recordsA enumerateObjectsUsingBlock:^(NSDictionary * _Nonnull changeInfo, NSUInteger idx, BOOL * _Nonnull stop) {
-					NSString *recordIdentifier = changeInfo[BTCloudKitSyncChangeRecordIdentifier];
-					if (recordIdentifier) {
-						CKRecord *ckRecord = nil;
-						CKRecordID *ckRecordID = nil;
-						
-						NSData *systemFields = [_localDatabase systemFieldsDataForRecordWithIdentifier:recordIdentifier error:nil];
-						if (systemFields) {
-							NSKeyedUnarchiver *archiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:systemFields];
-							archiver.requiresSecureCoding = YES;
-							ckRecord = [[CKRecord alloc] initWithCoder:archiver];
-							ckRecordID = ckRecord.recordID;
-						} else {
-							ckRecordID = [[CKRecordID alloc] initWithRecordName:recordIdentifier zoneID:zoneID];
-						}
-						
-						NSString *changeType = changeInfo[BTCloudKitSyncChangeTypeKey];
-						if ([changeType isEqualToString:BTCloudKitSyncChangeTypeDelete]) {
-							// Only add records to delete that are known to be in the
-							// CloudKit system. It's possible that a record showing up
-							// for deletion was just added before every syncing to
-							// CloudKit, so there's no reason to add it for deletion.
-							if (systemFields) {
-								[recordsToDeleteA addObject:ckRecordID];
-							}
-						} else {
-							if (ckRecord == nil) {
-								// This must be the very first time we've sent this
-								// to the server (first insert).
-								ckRecord = [[CKRecord alloc] initWithRecordType:recordType recordID:ckRecordID];
-							}
-							
-							NSDictionary *recordInfo = changeInfo[BTCloudKitSyncChangeRecordInfoKey];
-							if (recordInfo) {
-								[recordInfo enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
-									[ckRecord setObject:obj forKey:key];
-								}];
-								[recordsToSaveA addObject:ckRecord];
-							}
-						}
-					}
-				}];
-			}
-		}];
-		
-		if (shouldReturn) {
-			return;
-		}
-		
-		NSOperationQueue *queue = [NSOperationQueue new];
-		queue.name = @"SyncQueue";
-		queue.qualityOfService = NSQualityOfServiceUtility;
-		NSMutableArray *operationsA = [NSMutableArray new];
-		
-		CKModifyRecordsOperation *modifyRecordsOp = nil;
-		if (recordsToSaveA.count > 0 || recordsToDeleteA.count > 0) {
-			modifyRecordsOp = [[CKModifyRecordsOperation alloc] initWithRecordsToSave:recordsToSaveA recordIDsToDelete:recordsToDeleteA];
-			modifyRecordsOp.database = _privateDB;
-			modifyRecordsOp.savePolicy = CKRecordSaveIfServerRecordUnchanged;
-			modifyRecordsOp.atomic = YES;
-			[operationsA addObject:modifyRecordsOp];
-		}
-		modifyRecordsOp.modifyRecordsCompletionBlock = ^(NSArray<CKRecord *> *savedRecords, NSArray<CKRecordID *> *deletedRecordIDs, NSError *operationError) {
-			if (modifyRecordsOp.isCancelled == NO) {
-				if (operationError == nil) {
-					// Save off the system fields of the CKRecord so that future
-					// updates of the CKRecords will work.
-					if (savedRecords) {
-						[savedRecords enumerateObjectsUsingBlock:^(CKRecord * _Nonnull savedRecord, NSUInteger idx, BOOL * _Nonnull stop) {
-							NSMutableData *archivedData = [NSMutableData new];
-							NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initForWritingWithMutableData:archivedData];
-							archiver.requiresSecureCoding = YES;
-							[savedRecord encodeSystemFieldsWithCoder:archiver];
-							[archiver finishEncoding];
-							
-							NSString *identifier = savedRecord.recordID.recordName;
-							if (identifier) {
-								NSError *dbError = nil;
-								if ([_localDatabase saveSystemFieldsData:archivedData withIdentifier:identifier error:&dbError] == NO) {
-									// TO-DO: Figure out what to do about this error (shouldn't ever happen)
-									NSLog(@"Unable to save archived system fields: %@", dbError);
-								}
-							}
-						}];
-					}
-					
-					if (deletedRecordIDs) {
-						[deletedRecordIDs enumerateObjectsUsingBlock:^(CKRecordID * _Nonnull recordID, NSUInteger idx, BOOL * _Nonnull stop) {
-							NSString *identifier = recordID.recordName;
-							if (identifier) {
-								NSError *dbError = nil;
-								if ([_localDatabase deleteSystemFieldsForRecordWithIdentifier:identifier error:&dbError] == NO) {
-									NSLog(@"Unable to delete the archived system fields for record id (%@): %@", identifier, dbError);
-								}
-							}
-						}];
-					}
-					
-					[[_localDatabase recordTypes] enumerateObjectsUsingBlock:^(NSString * _Nonnull recordType, NSUInteger idx, BOOL * _Nonnull stop) {
-						NSError *purgeError = nil;
-						if ([_localDatabase purgeRecordChangesOfType:recordType beforeDate:syncDate error:&purgeError] == NO) {
-							[queue cancelAllOperations];
-							syncSuccessful = NO;
-							syncError = [NSError errorWithDomain:BTCloudKitSyncErrorDomain
-															code:BTCloudKitSyncErrorPurgeChanges
-														userInfo:@{NSLocalizedDescriptionKey:@"Could not purge changes after successful sync.",
-																   BTCloudKitSyncRecordTypeKey:recordType,
-																   NSUnderlyingErrorKey: purgeError}];
-							@synchronized (self) {
-								_isSynchronizing = NO;
-							}
-							
-							dispatch_async(dispatch_get_main_queue(), ^{
-								completion(NO, syncError);
-							});
+		// For now, each record type will be synchronized individually to make
+		// it easier to control limits/etc.
+		__block BOOL modifyRecordsSucceeded = YES;
+		NSArray<NSString *> *recordTypes = [_localDatabase recordTypes];
+		if (recordTypes && recordTypes.count > 0) {
+			[recordTypes enumerateObjectsUsingBlock:^(NSString * _Nonnull recordType, NSUInteger idx, BOOL * _Nonnull stop) {
+				
+				_currentRecordType = recordType;
+				
+				_currentBatchSizeToSend = _maxLocalChangesToSend;
+				
+				NSError *dbError = nil;
+				NSArray<NSDictionary *> *recordsA = [_localDatabase recordChangesOfType:recordType beforeDate:_currentSyncDate limit:_currentBatchSizeToSend error:&dbError];
+				if (recordsA && recordsA.count > 0) {
+					[self _modifyRecords:recordsA ofRecordType:recordType completionHandler:^(BOOL success) {
+						NSLog(@"Modify records for record type (%@): %@", recordType, success ? @"succeeded" : @"failed");
+						if (success == NO) {
+							modifyRecordsSucceeded = NO;
 						}
 					}];
-				} else {
-					// TO-DO: Figure out how to handle errors
-					switch (operationError.code) {
-						case CKErrorRequestRateLimited:
-						{
-							// Client is being rate limited
-							// Check userInfo's CKErrorRetryAfterKey to get NSTimeInterval when it's safe again to try
-							break;
-						}
-						case CKErrorChangeTokenExpired:
-						{
-							// The previousServerChangeToken value is too old and the client must re-sync from scratch
-							break;
-						}
-						case CKErrorBatchRequestFailed:
-						{
-							// One of the items in this batch operation failed in a zone with atomic updates, so the entire batch was rejected.
-							
-							// TO-DO: Go through each record and see which ones
-							// we need to fix the problems on.
-							break;
-						}
-						case CKErrorZoneBusy:
-						{
-							// The server is too busy to handle this zone operation. Try the operation again in a few seconds.
-							break;
-						}
-						case CKErrorLimitExceeded:
-						{
-							// The request to the server was too large. Retry this request as a smaller batch.
-							break;
-						}
-						case CKErrorQuotaExceeded:
-						{
-							// Saving a record would exceed quota
-							break;
-						}
-						case CKErrorServerRecordChanged:
-						{
-							// TO-DO: Make modifications on the server record
-							// and push these back to the server.
-							CKRecord *serverRecord = operationError.userInfo[CKRecordChangedErrorServerRecordKey];
-							break;
-						}
-						default:
-						{
-							NSLog(@"Unhandled CKModifyRecordsOperation error (%ld): %@", operationError.code, operationError);
-							break;
-						}
-
-					}
+					
+					// If the modify records operation has to run multiple times
+					// because of size limits or resolving server conflicts, we
+					// don't want to complicate things by allowing the fetch changes
+					// operation (below) to run, so go ahead and wait until all
+					// modify operations are completed first before continuing.
+					[_syncQueue waitUntilAllOperationsAreFinished];
 				}
-			}
-		};
-		
-		NSBlockOperation *fetchChangesOp = [NSBlockOperation blockOperationWithBlock:^{
-			[self fetchRecordChangesWithCompletionHandler:nil];
-		}];
-		if (modifyRecordsOp) {
-			[fetchChangesOp addDependency:modifyRecordsOp];
+			}];
 		}
-		[operationsA addObject:fetchChangesOp];
 		
-		[queue addOperations:operationsA waitUntilFinished:YES];
-		
-		if (syncSuccessful) {
-			[[NSUserDefaults standardUserDefaults] setObject:[NSDate date] forKey:kBTCloudKitSyncSettingLastSyncDateKey];
-			[[NSUserDefaults standardUserDefaults] synchronize];
-			
-			@synchronized (self) {
-				_isSynchronizing = NO;
-			}
-			dispatch_async(dispatch_get_main_queue(), ^{
-				NSLog(@"Sync Ended with Success");
-				[[NSNotificationCenter defaultCenter] postNotificationName:kBTCloudKitSyncSuccessNotification object:nil];
-				completion(YES, nil);
-			});
+		if (modifyRecordsSucceeded == YES) {
+			// TO-DO: Perhaps check for server changes here?
+			[self fetchRecordChangesWithCompletionHandler:^(BTFetchResult result, BOOL moreComing) {
+				// Delay setting this by just a tiny bit because in some cases,
+				// a fetch will actually not quite have finished a local save,
+				// BTCloudKitSync will receive a local change notification, and
+				// kick off another sync. Theoretically, there's a slight chance
+				// a user could make a change during this period and the app
+				// wouldn't pick up the change until a later sync.
+				// TO-DO: Figure out if there's a better way to handle wrapping up fetchChanges local notification kicking off a sync
+				dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+					@synchronized (self) {
+						_currentSyncDate = nil;
+						_currentRecordType = nil;
+						_currentBatchSizeToSend = 0;
+					}
+				});
+			}];
 		} else {
 			@synchronized (self) {
-				_isSynchronizing = NO;
+				_currentSyncDate = nil;
+				_currentRecordType = nil;
+				_currentBatchSizeToSend = 0;
 			}
-			dispatch_async(dispatch_get_main_queue(), ^{
-				NSLog(@"Sync Ended with Error");
-				[[NSNotificationCenter defaultCenter] postNotificationName:kBTCloudKitSyncErrorNotification object:nil userInfo:@{kBTCloudKitSyncErrorKey:syncError}];
-				completion(NO, syncError);
-			});
 		}
 	});
 }
+
+
+//- (void)performSyncWithCompletion:(void(^)(BOOL success, NSError *error))completion
+//{
+//	// The general recipe for this method is to:
+//	//	1.	Push local changes
+//	//	2.	Pull server changes
+//	if (self.syncEnabled == NO) {
+//		completion(NO, [NSError errorWithDomain:BTCloudKitSyncErrorDomain code:-1 userInfo:@{NSLocalizedDescriptionKey:@"Attempted to sync with sync currently disabled."}]);
+//		return;
+//	}
+//	
+//	@synchronized (self) {
+//		if (_isSynchronizing) {
+//			completion(NO, [NSError errorWithDomain:BTCloudKitSyncErrorDomain code:-1 userInfo:@{NSLocalizedDescriptionKey:@"Cannot perform a sync when a sync is already running."}]);
+//			return;
+//		}
+//		_isSynchronizing = YES;
+//	}
+//	
+//	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+//		
+//		dispatch_async(dispatch_get_main_queue(), ^{
+//			NSLog(@"Sync Began");
+//			[[NSNotificationCenter defaultCenter] postNotificationName:kBTCloudKitSyncBeganNotification object:nil];
+//		});
+//		
+//		__block BOOL syncSuccessful = YES;
+//		__block NSError *syncError = nil;
+//		
+//		NSString *recordZoneName = [_localDatabase recordZoneName];
+//		CKRecordZoneID *zoneID = [[CKRecordZoneID alloc] initWithZoneName:recordZoneName ownerName:CKOwnerDefaultName];
+//		
+//		NSDate *syncDate = [NSDate date];
+//		
+//		NSMutableArray<CKRecord *> *recordsToSaveA = [NSMutableArray new];
+//		NSMutableArray<CKRecordID *> *recordsToDeleteA = [NSMutableArray new];
+//		
+//		__block BOOL shouldReturn = NO;
+//		[[_localDatabase recordTypes] enumerateObjectsUsingBlock:^(NSString * _Nonnull recordType, NSUInteger idx, BOOL * _Nonnull stop) {
+//			NSError *dbError = nil;
+//			NSArray<NSDictionary *> *recordsA = [_localDatabase recordChangesOfType:recordType beforeDate:syncDate error:&dbError];
+//			if (recordsA == nil) {
+//				@synchronized (self) {
+//					_isSynchronizing = NO;
+//				}
+//				completion(NO, dbError);
+//				shouldReturn = YES;
+//				*stop = YES;
+//			} else {
+//				[recordsA enumerateObjectsUsingBlock:^(NSDictionary * _Nonnull changeInfo, NSUInteger idx, BOOL * _Nonnull stop) {
+//					NSString *recordIdentifier = changeInfo[BTCloudKitSyncChangeRecordIdentifier];
+//					if (recordIdentifier) {
+//						CKRecord *ckRecord = nil;
+//						CKRecordID *ckRecordID = nil;
+//						
+//						NSData *systemFields = [_localDatabase systemFieldsDataForRecordWithIdentifier:recordIdentifier error:nil];
+//						if (systemFields) {
+//							NSKeyedUnarchiver *archiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:systemFields];
+//							archiver.requiresSecureCoding = YES;
+//							ckRecord = [[CKRecord alloc] initWithCoder:archiver];
+//							ckRecordID = ckRecord.recordID;
+//						} else {
+//							ckRecordID = [[CKRecordID alloc] initWithRecordName:recordIdentifier zoneID:zoneID];
+//						}
+//						
+//						NSString *changeType = changeInfo[BTCloudKitSyncChangeTypeKey];
+//						if ([changeType isEqualToString:BTCloudKitSyncChangeTypeDelete]) {
+//							// Only add records to delete that are known to be in the
+//							// CloudKit system. It's possible that a record showing up
+//							// for deletion was just added before every syncing to
+//							// CloudKit, so there's no reason to add it for deletion.
+//							if (systemFields) {
+//								[recordsToDeleteA addObject:ckRecordID];
+//							}
+//						} else {
+//							if (ckRecord == nil) {
+//								// This must be the very first time we've sent this
+//								// to the server (first insert).
+//								ckRecord = [[CKRecord alloc] initWithRecordType:recordType recordID:ckRecordID];
+//							}
+//							
+//							NSDictionary *recordInfo = changeInfo[BTCloudKitSyncChangeRecordInfoKey];
+//							if (recordInfo) {
+//								[recordInfo enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
+//									[ckRecord setObject:obj forKey:key];
+//								}];
+//								[recordsToSaveA addObject:ckRecord];
+//							}
+//						}
+//					}
+//				}];
+//			}
+//		}];
+//		
+//		if (shouldReturn) {
+//			return;
+//		}
+//		
+//		NSOperationQueue *queue = [NSOperationQueue new];
+//		queue.name = @"SyncQueue";
+//		queue.qualityOfService = NSQualityOfServiceUtility;
+//		NSMutableArray *operationsA = [NSMutableArray new];
+//		
+//		CKModifyRecordsOperation *modifyRecordsOp = nil;
+//		if (recordsToSaveA.count > 0 || recordsToDeleteA.count > 0) {
+//			modifyRecordsOp = [[CKModifyRecordsOperation alloc] initWithRecordsToSave:recordsToSaveA recordIDsToDelete:recordsToDeleteA];
+//			modifyRecordsOp.database = _privateDB;
+//			modifyRecordsOp.savePolicy = CKRecordSaveIfServerRecordUnchanged;
+//			modifyRecordsOp.atomic = YES;
+//			[operationsA addObject:modifyRecordsOp];
+//		}
+//		modifyRecordsOp.modifyRecordsCompletionBlock = ^(NSArray<CKRecord *> *savedRecords, NSArray<CKRecordID *> *deletedRecordIDs, NSError *operationError) {
+//			if (modifyRecordsOp.isCancelled == NO) {
+//				if (operationError == nil) {
+//					// Save off the system fields of the CKRecord so that future
+//					// updates of the CKRecords will work.
+//					if (savedRecords) {
+//						[savedRecords enumerateObjectsUsingBlock:^(CKRecord * _Nonnull savedRecord, NSUInteger idx, BOOL * _Nonnull stop) {
+//							NSMutableData *archivedData = [NSMutableData new];
+//							NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initForWritingWithMutableData:archivedData];
+//							archiver.requiresSecureCoding = YES;
+//							[savedRecord encodeSystemFieldsWithCoder:archiver];
+//							[archiver finishEncoding];
+//							
+//							NSString *identifier = savedRecord.recordID.recordName;
+//							if (identifier) {
+//								NSError *dbError = nil;
+//								if ([_localDatabase saveSystemFieldsData:archivedData withIdentifier:identifier error:&dbError] == NO) {
+//									// TO-DO: Figure out what to do about this error (shouldn't ever happen)
+//									NSLog(@"Unable to save archived system fields: %@", dbError);
+//								}
+//							}
+//						}];
+//					}
+//					
+//					if (deletedRecordIDs) {
+//						[deletedRecordIDs enumerateObjectsUsingBlock:^(CKRecordID * _Nonnull recordID, NSUInteger idx, BOOL * _Nonnull stop) {
+//							NSString *identifier = recordID.recordName;
+//							if (identifier) {
+//								NSError *dbError = nil;
+//								if ([_localDatabase deleteSystemFieldsForRecordWithIdentifier:identifier error:&dbError] == NO) {
+//									NSLog(@"Unable to delete the archived system fields for record id (%@): %@", identifier, dbError);
+//								}
+//							}
+//						}];
+//					}
+//					
+//					[[_localDatabase recordTypes] enumerateObjectsUsingBlock:^(NSString * _Nonnull recordType, NSUInteger idx, BOOL * _Nonnull stop) {
+//						NSError *purgeError = nil;
+//						if ([_localDatabase purgeRecordChangesOfType:recordType beforeDate:syncDate error:&purgeError] == NO) {
+//							[queue cancelAllOperations];
+//							syncSuccessful = NO;
+//							syncError = [NSError errorWithDomain:BTCloudKitSyncErrorDomain
+//															code:BTCloudKitSyncErrorPurgeChanges
+//														userInfo:@{NSLocalizedDescriptionKey:@"Could not purge changes after successful sync.",
+//																   BTCloudKitSyncRecordTypeKey:recordType,
+//																   NSUnderlyingErrorKey: purgeError}];
+//							@synchronized (self) {
+//								_isSynchronizing = NO;
+//							}
+//							
+//							dispatch_async(dispatch_get_main_queue(), ^{
+//								completion(NO, syncError);
+//							});
+//						}
+//					}];
+//				} else {
+//					// TO-DO: Figure out how to handle errors
+//					switch (operationError.code) {
+//						case CKErrorRequestRateLimited:
+//						{
+//							// Client is being rate limited
+//							// Check userInfo's CKErrorRetryAfterKey to get NSTimeInterval when it's safe again to try
+//							break;
+//						}
+//						case CKErrorChangeTokenExpired:
+//						{
+//							// The previousServerChangeToken value is too old and the client must re-sync from scratch
+//							break;
+//						}
+//						case CKErrorBatchRequestFailed:
+//						{
+//							// One of the items in this batch operation failed in a zone with atomic updates, so the entire batch was rejected.
+//							
+//							// TO-DO: Go through each record and see which ones
+//							// we need to fix the problems on.
+//							break;
+//						}
+//						case CKErrorZoneBusy:
+//						{
+//							// The server is too busy to handle this zone operation. Try the operation again in a few seconds.
+//							break;
+//						}
+//						case CKErrorLimitExceeded:
+//						{
+//							// The request to the server was too large. Retry this request as a smaller batch.
+//							break;
+//						}
+//						case CKErrorQuotaExceeded:
+//						{
+//							// Saving a record would exceed quota
+//							break;
+//						}
+//						case CKErrorServerRecordChanged:
+//						{
+//							// TO-DO: Make modifications on the server record
+//							// and push these back to the server.
+//							CKRecord *serverRecord = operationError.userInfo[CKRecordChangedErrorServerRecordKey];
+//							break;
+//						}
+//						default:
+//						{
+//							NSLog(@"Unhandled CKModifyRecordsOperation error (%ld): %@", operationError.code, operationError);
+//							break;
+//						}
+//
+//					}
+//				}
+//			}
+//		};
+//		
+//		NSBlockOperation *fetchChangesOp = [NSBlockOperation blockOperationWithBlock:^{
+//			[self fetchRecordChangesWithCompletionHandler:nil];
+//		}];
+//		if (modifyRecordsOp) {
+//			[fetchChangesOp addDependency:modifyRecordsOp];
+//		}
+//		[operationsA addObject:fetchChangesOp];
+//		
+//		[queue addOperations:operationsA waitUntilFinished:YES];
+//		
+//		if (syncSuccessful) {
+//			[[NSUserDefaults standardUserDefaults] setObject:[NSDate date] forKey:kBTCloudKitSyncSettingLastSyncDateKey];
+//			[[NSUserDefaults standardUserDefaults] synchronize];
+//			
+//			@synchronized (self) {
+//				_isSynchronizing = NO;
+//			}
+//			dispatch_async(dispatch_get_main_queue(), ^{
+//				NSLog(@"Sync Ended with Success");
+//				[[NSNotificationCenter defaultCenter] postNotificationName:kBTCloudKitSyncSuccessNotification object:nil];
+//				completion(YES, nil);
+//			});
+//		} else {
+//			@synchronized (self) {
+//				_isSynchronizing = NO;
+//			}
+//			dispatch_async(dispatch_get_main_queue(), ^{
+//				NSLog(@"Sync Ended with Error");
+//				[[NSNotificationCenter defaultCenter] postNotificationName:kBTCloudKitSyncErrorNotification object:nil userInfo:@{kBTCloudKitSyncErrorKey:syncError}];
+//				completion(NO, syncError);
+//			});
+//		}
+//	});
+//}
 
 
 - (void)fetchRecordChangesWithCompletionHandler:(void (^)(BTFetchResult result, BOOL moreComing))completionHandler
@@ -610,14 +736,21 @@
 
 - (void)_localDatabaseChangedNotification:(NSNotification *)notification
 {
-	if (_syncTimer && _syncTimer.isValid) {
-		[_syncTimer invalidate];
-		_syncTimer = nil;
+//	NSLog(@"%s", __PRETTY_FUNCTION__);
+	if (_currentSyncDate) {
+		// A sync is currently running, so ignore any local db changes. They
+		// will be picked up at the end of a successful sync automatically.
+//		NSLog(@"Ignoring a local change during concurrent sync.");
+		return;
 	}
 	
 	NSDate *fireDate = [NSDate dateWithTimeIntervalSinceNow:kBTCloudKitSyncChangeTimeoutInSeconds];
-	_syncTimer = [[NSTimer alloc] initWithFireDate:fireDate interval:0 target:self selector:@selector(_syncTimerFired:) userInfo:nil repeats:NO];
-	[[NSRunLoop mainRunLoop] addTimer:_syncTimer forMode:NSDefaultRunLoopMode];
+	if (_syncTimer) {
+		[_syncTimer setFireDate:fireDate];
+	} else {
+		_syncTimer = [[NSTimer alloc] initWithFireDate:fireDate interval:0 target:self selector:@selector(_syncTimerFired:) userInfo:nil repeats:NO];
+		[[NSRunLoop mainRunLoop] addTimer:_syncTimer forMode:NSDefaultRunLoopMode];
+	}
 }
 
 - (void)_syncTimerFired:(NSTimer *)timer
@@ -628,13 +761,14 @@
 	_syncTimer = nil;
 	
 	// Kick off a sync
-	[self performSyncWithCompletion:^(BOOL success, NSError *error) {
-		if (success) {
-			NSLog(@"A successful sync occurred from the sync timer.");
-		} else {
-			NSLog(@"A sync from the sync timer failed: %@", error);
-		}
-	}];
+	[self startSync];
+//	[self performSyncWithCompletion:^(BOOL success, NSError *error) {
+//		if (success) {
+//			NSLog(@"A successful sync occurred from the sync timer.");
+//		} else {
+//			NSLog(@"A sync from the sync timer failed: %@", error);
+//		}
+//	}];
 }
 
 - (void)_observeLocalDatabaseChanges:(BOOL)observeChanges
@@ -760,6 +894,309 @@
 	return YES;
 }
 
+
+- (void)_modifyRecords:(NSArray<NSDictionary *> *)records
+		  ofRecordType:(NSString *)recordType
+	 completionHandler:(void (^)(BOOL success))completionHandler
+{
+	if (records == nil || records.count == 0) {
+		NSLog(@"_modifyRecords:ofRecordType:completionHandler: sent empty records");
+		if (completionHandler) {
+			completionHandler(NO);
+		}
+		return;
+	}
+	
+	if (recordType == nil) {
+		NSLog(@"_modifyRecords:ofRecordType:completionHandler: sent empty recordType.");
+		if (completionHandler) {
+			completionHandler(NO);
+		}
+		return;
+	}
+	
+	//
+	// First build up the arrays of records to save & delete
+	//
+	NSMutableArray *recordsToSaveA = [NSMutableArray new];
+	NSMutableArray *recordsToDeleteA = [NSMutableArray new];
+	
+	NSString *recordZoneName = [_localDatabase recordZoneName];
+	CKRecordZoneID *zoneID = [[CKRecordZoneID alloc] initWithZoneName:recordZoneName ownerName:CKOwnerDefaultName];
+	
+	[records enumerateObjectsUsingBlock:^(NSDictionary * _Nonnull changeInfo, NSUInteger idx, BOOL * _Nonnull stop) {
+		NSString *recordIdentifier = changeInfo[BTCloudKitSyncChangeRecordIdentifier];
+		if (recordIdentifier) {
+			CKRecord *ckRecord = nil;
+			CKRecordID *ckRecordID = nil;
+			
+			NSData *systemFields = [_localDatabase systemFieldsDataForRecordWithIdentifier:recordIdentifier error:nil];
+			if (systemFields) {
+				NSKeyedUnarchiver *archiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:systemFields];
+				archiver.requiresSecureCoding = YES;
+				ckRecord = [[CKRecord alloc] initWithCoder:archiver];
+				ckRecordID = ckRecord.recordID;
+			} else {
+				ckRecordID = [[CKRecordID alloc] initWithRecordName:recordIdentifier zoneID:zoneID];
+			}
+			
+			NSString *changeType = changeInfo[BTCloudKitSyncChangeTypeKey];
+			if ([changeType isEqualToString:BTCloudKitSyncChangeTypeDelete]) {
+				// Only add records to delete that are known to be in the
+				// CloudKit system. It's possible that a record showing up
+				// for deletion was just added before every syncing to
+				// CloudKit, so there's no reason to add it for deletion.
+				if (systemFields) {
+					[recordsToDeleteA addObject:ckRecordID];
+				} else {
+					// Let's purge the changes from the local database so we
+					// don't try to send this again.
+					[_localDatabase purgeRecordChangeWithIdentifier:recordIdentifier beforeDate:_currentSyncDate error:nil];
+				}
+			} else {
+				if (ckRecord == nil) {
+					// This must be the very first time we've sent this
+					// to the server (first insert).
+					ckRecord = [[CKRecord alloc] initWithRecordType:recordType recordID:ckRecordID];
+				}
+				
+				NSDictionary *recordInfo = changeInfo[BTCloudKitSyncChangeRecordInfoKey];
+				if (recordInfo) {
+					[recordInfo enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
+						[ckRecord setObject:obj forKey:key];
+					}];
+					[recordsToSaveA addObject:ckRecord];
+				}
+			}
+		}
+	}];
+	
+	// Safety check to see that we have at least something to send
+	if (recordsToSaveA.count == 0 && recordsToDeleteA.count == 0) {
+		// This condition could be hit if we had local changes that were a
+		// delete for records that were never sent to the server in the first
+		// place.
+		
+		NSLog(@"After querying the local database for changes, no records were found to send to CloudKit.");
+		completionHandler(YES);
+		return;
+	}
+	
+	//
+	// Attempt to push the changes to CloudKit
+	//
+	
+	CKModifyRecordsOperation *modifyRecordsOp = nil;
+	modifyRecordsOp = [[CKModifyRecordsOperation alloc] initWithRecordsToSave:recordsToSaveA recordIDsToDelete:recordsToDeleteA];
+	modifyRecordsOp.database = _privateDB;
+	modifyRecordsOp.savePolicy = CKRecordSaveIfServerRecordUnchanged;
+	modifyRecordsOp.atomic = YES;
+	
+	modifyRecordsOp.modifyRecordsCompletionBlock = ^(NSArray<CKRecord *> *savedRecords, NSArray<CKRecordID *> *deletedRecordIDs, NSError *operationError) {
+		if (modifyRecordsOp.isCancelled == NO) {
+			if (operationError == nil) {
+				// Save off the system fields of the CKRecord so that future
+				// updates of the CKRecords will work.
+				if (savedRecords) {
+					[savedRecords enumerateObjectsUsingBlock:^(CKRecord * _Nonnull savedRecord, NSUInteger idx, BOOL * _Nonnull stop) {
+						NSMutableData *archivedData = [NSMutableData new];
+						NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initForWritingWithMutableData:archivedData];
+						archiver.requiresSecureCoding = YES;
+						[savedRecord encodeSystemFieldsWithCoder:archiver];
+						[archiver finishEncoding];
+						
+						NSString *identifier = savedRecord.recordID.recordName;
+						if (identifier) {
+							NSError *dbError = nil;
+							if ([_localDatabase saveSystemFieldsData:archivedData withIdentifier:identifier error:&dbError] == NO) {
+								// TO-DO: Figure out what to do about this error (shouldn't ever happen)
+								NSLog(@"Unable to save archived system fields: %@", dbError);
+							}
+						}
+						
+						NSError *purgeError = nil;
+						[_localDatabase purgeRecordChangeWithIdentifier:identifier beforeDate:_currentSyncDate error:&purgeError];
+						if (purgeError) {
+							NSLog(@"Error purging record change for modified record with identifier: %@", identifier);
+						}
+					}];
+				}
+				
+				if (deletedRecordIDs) {
+					[deletedRecordIDs enumerateObjectsUsingBlock:^(CKRecordID * _Nonnull recordID, NSUInteger idx, BOOL * _Nonnull stop) {
+						NSString *identifier = recordID.recordName;
+						if (identifier) {
+							NSError *dbError = nil;
+							if ([_localDatabase deleteSystemFieldsForRecordWithIdentifier:identifier error:&dbError] == NO) {
+								NSLog(@"Unable to delete the archived system fields for record id (%@): %@", identifier, dbError);
+							}
+						}
+						
+						NSError *purgeError = nil;
+						[_localDatabase purgeRecordChangeWithIdentifier:identifier beforeDate:_currentSyncDate error:&purgeError];
+						if (purgeError) {
+							NSLog(@"Error purging record change for deleted record with identifier: %@", identifier);
+						}
+					}];
+				}
+				
+				// During sync, BTCloudKitSync doesn't pay attention to local
+				// change notifications, so just to be sure we didn't actually
+				// miss anything that was a user-initiated change, check for
+				// record changes and kick off another sync if needed.
+				NSError *dbError = nil;
+				NSArray<NSDictionary *> *recordsA = [_localDatabase recordChangesOfType:_currentRecordType
+																			 beforeDate:_currentSyncDate
+																				  limit:_currentBatchSizeToSend
+																				  error:&dbError];
+				if (dbError) {
+					NSLog(@"Error getting local database changes when checking for any user-based changes at the end of a modify records operation: %@", dbError);
+					completionHandler(NO);
+				} else {
+					if (recordsA == nil || recordsA.count == 0) {
+						completionHandler(YES);
+					} else {
+						[self _modifyRecords:recordsA
+								ofRecordType:_currentRecordType
+						   completionHandler:completionHandler];
+					}
+				}
+			} else {
+				BOOL shouldRetryModifyRecords = NO;
+				switch (operationError.code) {
+					case CKErrorPartialFailure:
+					{
+						// Some of the records sent had errors. There could be
+						// conflicts to resolve and/or some records may have failed
+						// to delete (if some other client deleted the same record
+						// prior to this device).
+						//
+						// To keep things simplistic, server changes will win in a
+						// conflict. Change the local record, save off the new
+						// system fields for the record, and purge the local record
+						// from its changelog so it no longer gets picked up as a
+						// change during subsequent calls to _modifyRecords: with
+						// the same sync date.
+						
+						NSDictionary *partialErrorResultsD = operationError.userInfo[CKPartialErrorsByItemIDKey];
+						if (partialErrorResultsD) {
+							[partialErrorResultsD enumerateKeysAndObjectsUsingBlock:^(CKRecordID * _Nonnull recordID, NSError * _Nonnull ckError, BOOL * _Nonnull stop) {
+								switch (ckError.code) {
+									case CKErrorServerRecordChanged:
+									{
+										// A conflict was generated. For now, just
+										// use the server's version and overwrite
+										// the changes made locally.
+										CKRecord *serverRecord = ckError.userInfo[CKRecordChangedErrorServerRecordKey];
+										if ([self _saveRecordLocally:serverRecord] == YES) {
+											// Remove the change info for this
+											// record so it doesn't get sent again
+											// in any subsequent modify operation
+											// since we just dealt with getting it
+											// in sync with the server.
+											[_localDatabase purgeRecordChangeWithIdentifier:recordID.recordName
+																				 beforeDate:_currentSyncDate
+																					  error:nil];
+										}
+										break;
+									}
+//									case CKErrorBatchRequestFailed:
+//									{
+//										// This is a record that was part of the
+//										// atomic batch and so the record was
+//										// automatically marked with this failure
+//										// and should be retried
+//										break;
+//									}
+										
+									default:
+										break;
+								}
+							}];
+						}
+						
+						shouldRetryModifyRecords = YES;
+						break;
+					}
+					case CKErrorRequestRateLimited:
+					case CKErrorServiceUnavailable:
+					case CKErrorZoneBusy:
+					{
+						// Client is being rate limited
+						// Check userInfo's CKErrorRetryAfterKey to get NSTimeInterval when it's safe again to try
+						NSNumber *secondsToWaitUntilRetry = operationError.userInfo[CKErrorRetryAfterKey];
+						if (secondsToWaitUntilRetry == nil) {
+							// determine a reasonable amount of time to wait to retry
+							secondsToWaitUntilRetry = @30; // TO-DO: Really figure out how to handle this
+						}
+						
+						// TO-DO: Determine how to restart a modify records operation after X seconds
+						
+						// Since this is not the main thread, it's conceivable
+						// that one option would be to just sleep this thread
+						// for the given amount of seconds and then continue.
+						[NSThread sleepUntilDate:[NSDate dateWithTimeIntervalSinceNow:(NSTimeInterval)secondsToWaitUntilRetry.integerValue]];
+						shouldRetryModifyRecords = YES;
+						break;
+					}
+					case CKErrorLimitExceeded:
+					{
+						// The request to the server was too large. Retry this request as a smaller batch.
+						
+						// According to the WWDC 2015 CloudKit Tips & Tricks
+						// session, the batch size should just be cut in half.
+						if (_currentBatchSizeToSend == 0) {
+							// We never set a batch size, so grab the actual
+							// number of records we attempted to send and set
+							// _currentBatchSizeToSend to half that.
+							NSUInteger currentBatchSize = recordsToSaveA.count + recordsToDeleteA.count;
+							_currentBatchSizeToSend = (NSUInteger)ceil(currentBatchSize / 2);
+						} else {
+							_currentBatchSizeToSend = (NSUInteger)ceil(_currentBatchSizeToSend / 2);
+						}
+						shouldRetryModifyRecords = YES;
+						
+						break;
+					}
+					case CKErrorQuotaExceeded:
+					{
+						// TO-DO: Figure out how to deal with CKErrorQuotaExceeded during CKModifyRecordsOperation
+						break;
+					}
+				}
+				
+				// Restart if this was a recoverable error
+				if (shouldRetryModifyRecords) {
+					
+					NSError *dbError = nil;
+					NSArray<NSDictionary *> *recordsA = [_localDatabase recordChangesOfType:_currentRecordType
+																				 beforeDate:_currentSyncDate
+																					  limit:_currentBatchSizeToSend
+																					  error:&dbError];
+					if (dbError) {
+						NSLog(@"Error getting local database changes when retrying modify records operation: %@", dbError);
+						completionHandler(NO);
+					} else {
+						if (recordsA == nil || recordsA.count == 0) {
+							completionHandler(YES);
+						} else {
+							[self _modifyRecords:recordsA
+									ofRecordType:_currentRecordType
+							   completionHandler:completionHandler];
+						}
+					}
+				}
+			}
+		} else {
+			// The operation was cancelled
+			completionHandler(NO);
+		}
+	};
+	
+	[_syncQueue addOperation:modifyRecordsOp];
+}
+
+
 - (void)_fetchRecordChangesWithServerChangeToken:(CKServerChangeToken *)serverChangeToken
 							   completionHandler:(void (^)(BTFetchResult result, BOOL moreComing))completionHandler
 {
@@ -775,6 +1212,25 @@
 	fetchChangesOp.fetchRecordChangesCompletionBlock = ^(CKServerChangeToken *newServerChangeToken, NSData *clientChangeTokenData, NSError *operationError) {
 		if (weakFetchChangesOp.cancelled == NO) {
 			if (operationError) {
+				switch (operationError.code) {
+					case CKErrorChangeTokenExpired:
+					{
+						// The server change token we sent previously is too old and
+						// we need to fetch everything fresh.
+						[self _clearServerChangeToken];
+						[self _fetchRecordChangesWithServerChangeToken:nil
+													 completionHandler:completionHandler];
+					}
+					case CKErrorRequestRateLimited:
+					case CKErrorServiceUnavailable:
+					{
+						NSNumber *secondsUntilRetry = operationError.userInfo[CKErrorRetryAfterKey];
+						// TO-DO: Determine how to restart a _fetchRecordChangesWithServerChangeToken: after the specified number of seconds
+						
+						break;
+					}
+				}
+				
 				
 			} else if (!recordsWereDeleted && !recordsWereModified && !weakFetchChangesOp.moreComing) {
 				[self _saveServerChangeToken:newServerChangeToken];
@@ -815,54 +1271,9 @@
 			}
 		}
 		
-		BOOL addRecord = NO;
-		NSMutableDictionary *mutableRecordInfo = nil;
-		NSDictionary *recordInfo = [_localDatabase infoForRecordType:record.recordType withIdentifier:record.recordID.recordName error:nil];
-		if (recordInfo == nil) {
-			// This is a new record
-			addRecord = YES;
-			
-			mutableRecordInfo = [NSMutableDictionary new];
-		} else {
-			mutableRecordInfo = [NSMutableDictionary dictionaryWithDictionary:recordInfo];
+		if ([self _saveRecordLocally:record] == YES) {
+			recordsWereModified = YES;
 		}
-		
-		[[record allKeys] enumerateObjectsUsingBlock:^(NSString * _Nonnull key, NSUInteger idx, BOOL * _Nonnull stop) {
-			mutableRecordInfo[key] = record[key];
-		}];
-		
-		NSError *error = nil;
-		if (addRecord) {
-			if ([_localDatabase addRecordInfo:mutableRecordInfo withRecordType:record.recordType withIdentifier:record.recordID.recordName error:&error] == NO) {
-				// TO-DO: Figure out how to properly handle this error
-				NSLog(@"Error adding a record fetched from the server: %@", error);
-			} else {
-				recordsWereModified = YES;
-			}
-		} else {
-			if ([_localDatabase updateRecordInfo:mutableRecordInfo withRecordType:record.recordType withIdentifier:record.recordID.recordName error:&error] == NO) {
-				// TO-DO: Figure out how to properly handle this error
-				NSLog(@"Error updating a record fetched from the server: %@", error);
-			} else {
-				recordsWereModified = YES;
-			}
-		}
-		
-		// Save off the system fields of the CKRecord so that future updates
-		// will work properly.
-		NSMutableData *archivedData = [NSMutableData new];
-		NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initForWritingWithMutableData:archivedData];
-		archiver.requiresSecureCoding = YES;
-		[record encodeSystemFieldsWithCoder:archiver];
-		[archiver finishEncoding];
-		
-		NSString *identifier = record.recordID.recordName;
-		NSError *dbError = nil;
-		if ([_localDatabase saveSystemFieldsData:archivedData withIdentifier:identifier error:&dbError] == NO) {
-			// TO-DO: Figure out what to do about this error (shouldn't ever happen)
-			NSLog(@"Unable to save archived system fields: %@", dbError);
-		}
-		
 	};
 	fetchChangesOp.recordWithIDWasDeletedBlock = ^(CKRecordID *recordID) {
 		NSError *error = nil;
@@ -889,4 +1300,66 @@
 	[[NSUserDefaults standardUserDefaults] setObject:encodedServerChangeToken forKey:kBTCloudKitSyncServerChangeTokenKey];
 	[[NSUserDefaults standardUserDefaults] synchronize];
 }
+
+- (void)_clearServerChangeToken
+{
+	[[NSUserDefaults standardUserDefaults] removeObjectForKey:kBTCloudKitSyncServerChangeTokenKey];
+	[[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+- (BOOL)_saveRecordLocally:(CKRecord *)record
+{
+	BOOL recordSaved = NO;
+	
+	BOOL addRecord = NO;
+	NSMutableDictionary *mutableRecordInfo = nil;
+	NSDictionary *recordInfo = [_localDatabase infoForRecordType:record.recordType withIdentifier:record.recordID.recordName error:nil];
+	if (recordInfo == nil) {
+		// This is a new record
+		addRecord = YES;
+		
+		mutableRecordInfo = [NSMutableDictionary new];
+	} else {
+		mutableRecordInfo = [NSMutableDictionary dictionaryWithDictionary:recordInfo];
+	}
+	
+	[[record allKeys] enumerateObjectsUsingBlock:^(NSString * _Nonnull key, NSUInteger idx, BOOL * _Nonnull stop) {
+		mutableRecordInfo[key] = record[key];
+	}];
+	
+	NSError *error = nil;
+	if (addRecord) {
+		if ([_localDatabase addRecordInfo:mutableRecordInfo withRecordType:record.recordType withIdentifier:record.recordID.recordName error:&error] == NO) {
+			// TO-DO: Figure out how to properly handle this error
+			NSLog(@"Error adding a record sent from the server: %@", error);
+		} else {
+			recordSaved = YES;
+		}
+	} else {
+		if ([_localDatabase updateRecordInfo:mutableRecordInfo withRecordType:record.recordType withIdentifier:record.recordID.recordName error:&error] == NO) {
+			// TO-DO: Figure out how to properly handle this error
+			NSLog(@"Error updating a record sent from the server: %@", error);
+		} else {
+			recordSaved = YES;
+		}
+	}
+	
+	// Save off the system fields of the CKRecord so that future updates
+	// will work properly.
+	NSMutableData *archivedData = [NSMutableData new];
+	NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initForWritingWithMutableData:archivedData];
+	archiver.requiresSecureCoding = YES;
+	[record encodeSystemFieldsWithCoder:archiver];
+	[archiver finishEncoding];
+	
+	NSString *identifier = record.recordID.recordName;
+	NSError *dbError = nil;
+	if ([_localDatabase saveSystemFieldsData:archivedData withIdentifier:identifier error:&dbError] == NO) {
+		// TO-DO: Figure out what to do about this error (shouldn't ever happen)
+		NSLog(@"Unable to save archived system fields: %@", dbError);
+	}
+	
+	return recordSaved;
+}
+
 @end

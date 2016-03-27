@@ -85,7 +85,8 @@ typedef enum : NSUInteger {
 - (void)enableSync:(BOOL)enableSync withCompletionBlock:(void (^)(BOOL success, NSError *error))completion;
 
 
-- (void)performSyncWithCompletion:(void(^)(BOOL success, NSError *error))completion;
+- (void)startSync;
+//- (void)performSyncWithCompletion:(void(^)(BOOL success, NSError *error))completion;
 
 /**
  Fetch changes from CloudKit until all changes are fetched properly. This uses
@@ -200,6 +201,9 @@ typedef enum : NSUInteger {
  
  @param recordType The type of record to get changes for.
  @param identifier The record identifier.
+ @param limit Restrict the number of raw changes that should be evaluated in
+ the local database. Specifying a limit of 0 indicates to not limit at all and
+ return as many records that exist.
  @param error If the method fails, the error should contain details for the failure.
  
  @return An array of NSDictionary objects representing the changes found for the
@@ -207,7 +211,7 @@ typedef enum : NSUInteger {
  the details of the error. If no changes were found, do not return error, but
  instead, return an empty array.
  */
-- (NSArray<NSDictionary *> *)recordChangesOfType:(NSString *)recordType beforeDate:(NSDate *)date error:(NSError **)error;
+- (NSArray<NSDictionary *> *)recordChangesOfType:(NSString *)recordType beforeDate:(NSDate *)date limit:(NSUInteger)limit error:(NSError **)error;
 
 /**
  Purge (delete) records of the specified type in the database before the
@@ -221,12 +225,23 @@ typedef enum : NSUInteger {
  
  @param recordType The type of record to purge.
  @param date Records entered before this date will be deleted from the table.
+ @param limit Restrict the number of raw changes that should be purged from the
+ local database. This should match the limit used in
+ recordChangesOfType:beforeDate:limit:error:. Specifying a limit of 0 indicates
+ to not limit at all and purge all records before the specified date.
  @param error If the purge fails, this should contain an error with the failure details.
  
  @return YES when the purge is successful, otherwise NO. When NO, the details of
  the failure will be passed back in the error parameter.
  */
 - (BOOL)purgeRecordChangesOfType:(NSString *)recordType beforeDate:(NSDate *)date error:(NSError **)error;
+
+/**
+ Purge a single change record for the specified identifier. This is called by
+ BTCloudKitSync after successfully processing an upload or resolving conflicts
+ for a specific record.
+ */
+- (BOOL)purgeRecordChangeWithIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError **)error;
 
 /**
  When sync is enabled, this method is called for every record type to give the
