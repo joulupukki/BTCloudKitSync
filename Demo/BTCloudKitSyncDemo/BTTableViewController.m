@@ -86,7 +86,7 @@ typedef enum : NSUInteger {
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
 	switch ((SectionIndex)section) {
 		case SectionIndexSyncSettings:
-			return 2;
+			return 3;
 		case SectionIndexContacts:
 			return _contactsA.count;
 	}
@@ -94,6 +94,7 @@ typedef enum : NSUInteger {
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ContactCell" forIndexPath:indexPath];
+	cell.accessoryView = nil;
 	
 	switch ((SectionIndex)indexPath.section) {
 		case SectionIndexSyncSettings:
@@ -126,6 +127,11 @@ typedef enum : NSUInteger {
 					}
 					break;
 				}
+				case 2:
+				{
+					cell.textLabel.text = NSLocalizedString(@"Number of Contacts", @"Title of cell to indicate how many contacts are in the database.");
+					cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", _contactsA.count];
+				}
 			}
 			break;
 		}
@@ -145,13 +151,14 @@ typedef enum : NSUInteger {
     return cell;
 }
 
-/*
 // Override to support conditional editing of the table view.
-- (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
-    // Return NO if you do not want the specified item to be editable.
+- (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath
+{
+	if (indexPath.section == SectionIndexSyncSettings) {
+		return NO;
+	}
     return YES;
 }
-*/
 
 // Override to support editing the table view.
 - (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -337,6 +344,12 @@ typedef enum : NSUInteger {
 	NSUInteger idx = [_contactsA indexOfObject:contact];
 	NSIndexPath *indexPath = [NSIndexPath indexPathForRow:idx inSection:SectionIndexContacts];
 	[self.tableView insertRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationFade];
+	
+	// Update the contacts count row
+	UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:2 inSection:SectionIndexSyncSettings]];
+	if (cell) {
+		cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", _contactsA.count];
+	}
 }
 
 - (void)_contactUpdated:(NSNotification *)notification
@@ -385,6 +398,12 @@ typedef enum : NSUInteger {
 	
 	[_contactsA removeObjectAtIndex:indexPath.row];
 	[self.tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationFade];
+	
+	// Update the contacts count row
+	UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:2 inSection:SectionIndexSyncSettings]];
+	if (cell) {
+		cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", _contactsA.count];
+	}
 }
 
 
