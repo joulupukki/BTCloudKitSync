@@ -744,20 +744,28 @@
 {
 	// It's possible that a CKModifyRecordsOperation is currently running. If
 	// so, wait until it's done before continuing.
-	if (_currentSyncDate) {
-//		NSLog(@"\n--------------------------\n--------------------------\n    FETCH WAITING FOR MODIFY TO FINISH\n--------------------------\n--------------------------");
-		[_syncQueue waitUntilAllOperationsAreFinished];
-//		NSLog(@"\n--------------------------\n--------------------------\n    MODIFY FINISHED\n--------------------------\n--------------------------");
-	}
-	
-	CKServerChangeToken *serverChangeToken = nil;
-	NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:kBTCloudKitSyncServerChangeTokenKey];
-	if (data) {
-		serverChangeToken = [NSKeyedUnarchiver unarchiveObjectWithData:data];
-	}
-	
-	[self _fetchRecordChangesWithServerChangeToken:serverChangeToken
-								 completionHandler:completionHandler];
+	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+		if (_currentSyncDate) {
+//NSLog(@"\n--------------------------\n--------------------------\n    FETCH WAITING FOR MODIFY TO FINISH\n--------------------------\n--------------------------");
+			[_syncQueue waitUntilAllOperationsAreFinished];
+//NSLog(@"\n--------------------------\n--------------------------\n    MODIFY FINISHED\n--------------------------\n--------------------------");
+		}
+		
+		CKServerChangeToken *serverChangeToken = nil;
+		NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:kBTCloudKitSyncServerChangeTokenKey];
+		if (data) {
+			serverChangeToken = [NSKeyedUnarchiver unarchiveObjectWithData:data];
+		}
+		
+		[self _fetchRecordChangesWithServerChangeToken:serverChangeToken
+									 completionHandler:^(BTFetchResult result, BOOL moreComing) {
+//NSLog(@"\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n          FETCH RESULT: %lu, %d \n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", result, moreComing);
+										 completionHandler(result, moreComing);
+									 }];
+		
+		//	[self _fetchRecordChangesWithServerChangeToken:serverChangeToken
+		//								 completionHandler:completionHandler];
+	});
 }
 
 #pragma mark - Custom Properties
