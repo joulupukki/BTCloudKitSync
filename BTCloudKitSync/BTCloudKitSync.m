@@ -67,6 +67,9 @@
 
 @property (nonatomic, strong) NSString *currentRecordType;
 
+
+@property (nonatomic, strong) NSMutableDictionary *currentSyncDates;
+
 @end
 
 @implementation BTCloudKitSync
@@ -90,6 +93,8 @@
 		_syncQueue.name = @"SyncQueue";
 		_syncQueue.qualityOfService = NSQualityOfServiceUtility;
 		_syncQueue.maxConcurrentOperationCount = 1; // Keep some order to everything
+		
+		_currentSyncDates = [NSMutableDictionary new];
 		
 		[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_iCloudAccountChangedNotification:) name:CKAccountChangedNotification object:nil];
 //		[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_iCloudAccountChangedNotification:) name:NSUbiquityIdentityDidChangeNotification object:nil];
@@ -401,6 +406,7 @@
 				_currentRecordType = recordType;
 				
 				_currentBatchSizeToSend = _maxLocalChangesToSend;
+				_currentSyncDates[recordType] = _currentSyncDate;
 				
 				NSError *dbError = nil;
 				NSArray<NSDictionary *> *recordsA = [_localDatabase recordChangesOfType:recordType beforeDate:_currentSyncDate limit:_currentBatchSizeToSend error:&dbError];
@@ -462,6 +468,7 @@
 						_currentSyncDate = nil;
 						_currentRecordType = nil;
 						_currentBatchSizeToSend = 0;
+						[_currentSyncDates removeAllObjects];
 					}
 				});
 			}];
@@ -470,6 +477,7 @@
 				_currentSyncDate = nil;
 				_currentRecordType = nil;
 				_currentBatchSizeToSend = 0;
+				[_currentSyncDates removeAllObjects];
 			}
 		}
 	});
@@ -984,7 +992,7 @@
 				} else {
 					// Let's purge the changes from the local database so we
 					// don't try to send this again.
-					[_localDatabase purgeRecordChangeWithIdentifier:recordIdentifier beforeDate:_currentSyncDate error:nil];
+					[_localDatabase purgeRecordChangeWithIdentifier:recordIdentifier beforeDate:_currentSyncDates[recordType] error:nil];
 				}
 			} else {
 				if (ckRecord == nil) {
@@ -1048,7 +1056,7 @@
 						}
 						
 						NSError *purgeError = nil;
-						[_localDatabase purgeRecordChangeWithIdentifier:identifier beforeDate:_currentSyncDate error:&purgeError];
+						[_localDatabase purgeRecordChangeWithIdentifier:identifier beforeDate:_currentSyncDates[recordType] error:&purgeError];
 						if (purgeError) {
 							NSLog(@"Error purging record change for modified record with identifier: %@", identifier);
 						}
@@ -1068,7 +1076,7 @@
 						}
 						
 						NSError *purgeError = nil;
-						[_localDatabase purgeRecordChangeWithIdentifier:identifier beforeDate:_currentSyncDate error:&purgeError];
+						[_localDatabase purgeRecordChangeWithIdentifier:identifier beforeDate:_currentSyncDates[recordType] error:&purgeError];
 						if (purgeError) {
 							NSLog(@"Error purging record change for deleted record with identifier: %@", identifier);
 						}
@@ -1081,9 +1089,19 @@
 				// change notifications, so just to be sure we didn't actually
 				// miss anything that was a user-initiated change, check for
 				// record changes and kick off another sync if needed.
+				
+				// This is a new sync for this particular record type, so reset
+				// the current sync date for this record type.
+				_currentSyncDates[recordType] = [NSDate date];
+				
+				// Also reset the batch size so in case the previous sync had to
+				// reduce the size for whatever reason, we won't punish this
+				// modify records operation.
+				_currentBatchSizeToSend = _maxLocalChangesToSend;
+				
 				NSError *dbError = nil;
 				NSArray<NSDictionary *> *recordsA = [_localDatabase recordChangesOfType:_currentRecordType
-																			 beforeDate:_currentSyncDate
+																			 beforeDate:_currentSyncDates[recordType]
 																				  limit:_currentBatchSizeToSend
 																				  error:&dbError];
 				if (dbError) {
@@ -1135,7 +1153,7 @@
 											// since we just dealt with getting it
 											// in sync with the server.
 											[_localDatabase purgeRecordChangeWithIdentifier:recordID.recordName
-																				 beforeDate:_currentSyncDate
+																				 beforeDate:_currentSyncDates[recordType]
 																					  error:nil];
 										}
 										break;
@@ -1221,7 +1239,7 @@
 					
 					NSError *dbError = nil;
 					NSArray<NSDictionary *> *recordsA = [_localDatabase recordChangesOfType:_currentRecordType
-																				 beforeDate:_currentSyncDate
+																				 beforeDate:_currentSyncDates[recordType]
 																					  limit:_currentBatchSizeToSend
 																					  error:&dbError];
 					if (dbError) {
