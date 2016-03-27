@@ -335,9 +335,9 @@ typedef enum : NSUInteger {
 	
 	[_contactsA addObject:contact];
 	[_contactsA sortUsingComparator:^NSComparisonResult(__kindof BTContact * _Nonnull contactA, __kindof BTContact * _Nonnull contactB) {
-		NSComparisonResult result = [contactA.firstName compare:contactB.firstName];
+		NSComparisonResult result = [contactA.identifier compare:contactB.identifier];
 		if (result == NSOrderedSame) {
-			result = [contactA.lastName compare:contactB.lastName];
+			result = [contactA.identifier compare:contactB.identifier];
 		}
 		return result;
 	}];

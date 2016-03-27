@@ -102,7 +102,7 @@
 	[_dbQueue inDatabase:^(FMDatabase *db) {
 		//(identifier TEXT PRIMARY KEY, first_name TEXT, last_name TEXT, last_modified DATE)"
 
-		FMResultSet *rs = [db executeQuery:@"SELECT identifier,first_name,last_name,last_modified FROM contacts ORDER BY first_name,last_name ASC"];
+		FMResultSet *rs = [db executeQuery:@"SELECT identifier,first_name,last_name,last_modified FROM contacts ORDER BY identifier ASC"];
 		if (rs) {
 			while ([rs next]) {
 				BTContact *contact = [self _contactFromResultSet:rs];
