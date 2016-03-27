@@ -424,6 +424,31 @@
 		
 		if (modifyRecordsSucceeded == YES) {
 			// TO-DO: Perhaps check for server changes here?
+			
+//			CKServerChangeToken *serverChangeToken = nil;
+//			NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:kBTCloudKitSyncServerChangeTokenKey];
+//			if (data) {
+//				serverChangeToken = [NSKeyedUnarchiver unarchiveObjectWithData:data];
+//			}
+//			
+//			[self _fetchRecordChangesWithServerChangeToken:serverChangeToken
+//										 completionHandler:^(BTFetchResult result, BOOL moreComing) {
+//											 // Delay setting this by just a tiny bit because in some cases,
+//											 // a fetch will actually not quite have finished a local save,
+//											 // BTCloudKitSync will receive a local change notification, and
+//											 // kick off another sync. Theoretically, there's a slight chance
+//											 // a user could make a change during this period and the app
+//											 // wouldn't pick up the change until a later sync.
+//											 // TO-DO: Figure out if there's a better way to handle wrapping up fetchChanges local notification kicking off a sync
+//											 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+//												 @synchronized (self) {
+//													 _currentSyncDate = nil;
+//													 _currentRecordType = nil;
+//													 _currentBatchSizeToSend = 0;
+//												 }
+//											 });
+//										 }];
+			
 			[self fetchRecordChangesWithCompletionHandler:^(BTFetchResult result, BOOL moreComing) {
 				// Delay setting this by just a tiny bit because in some cases,
 				// a fetch will actually not quite have finished a local save,
@@ -709,6 +734,14 @@
 
 - (void)fetchRecordChangesWithCompletionHandler:(void (^)(BTFetchResult result, BOOL moreComing))completionHandler
 {
+	// It's possible that a CKModifyRecordsOperation is currently running. If
+	// so, wait until it's done before continuing.
+	if (_currentSyncDate) {
+//		NSLog(@"\n--------------------------\n--------------------------\n    FETCH WAITING FOR MODIFY TO FINISH\n--------------------------\n--------------------------");
+		[_syncQueue waitUntilAllOperationsAreFinished];
+//		NSLog(@"\n--------------------------\n--------------------------\n    MODIFY FINISHED\n--------------------------\n--------------------------");
+	}
+	
 	CKServerChangeToken *serverChangeToken = nil;
 	NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:kBTCloudKitSyncServerChangeTokenKey];
 	if (data) {
@@ -1019,6 +1052,8 @@
 						if (purgeError) {
 							NSLog(@"Error purging record change for modified record with identifier: %@", identifier);
 						}
+						
+//NSLog(@"\n++++ Record Uploaded ++++\n%@\n+++++++++++++++++++++++", savedRecord);
 					}];
 				}
 				
@@ -1037,6 +1072,8 @@
 						if (purgeError) {
 							NSLog(@"Error purging record change for deleted record with identifier: %@", identifier);
 						}
+						
+//NSLog(@"\n++++ Record Deleted ++++\n%@\n+++++++++++++++++++++++", recordID.recordName);
 					}];
 				}
 				
@@ -1063,6 +1100,8 @@
 				}
 			} else {
 				BOOL shouldRetryModifyRecords = NO;
+//NSLog(@"\n++++ Operation Error: %ld ++++", operationError.code);
+
 				switch (operationError.code) {
 					case CKErrorPartialFailure:
 					{
@@ -1088,6 +1127,7 @@
 										// use the server's version and overwrite
 										// the changes made locally.
 										CKRecord *serverRecord = ckError.userInfo[CKRecordChangedErrorServerRecordKey];
+//NSLog(@"\n++++ CONFLICT RESOLUTION ++++\n%@\n+++++++++++++++++++++++", serverRecord);
 										if ([self _saveRecordLocally:serverRecord] == YES) {
 											// Remove the change info for this
 											// record so it doesn't get sent again
@@ -1100,14 +1140,15 @@
 										}
 										break;
 									}
-//									case CKErrorBatchRequestFailed:
-//									{
-//										// This is a record that was part of the
-//										// atomic batch and so the record was
-//										// automatically marked with this failure
-//										// and should be retried
-//										break;
-//									}
+									case CKErrorBatchRequestFailed:
+									{
+//NSLog(@"\n++++ CKErrorBatchRequestFailed ++++");
+										// This is a record that was part of the
+										// atomic batch and so the record was
+										// automatically marked with this failure
+										// and should be retried
+										break;
+									}
 										
 									default:
 										break;
@@ -1119,7 +1160,14 @@
 						break;
 					}
 					case CKErrorRequestRateLimited:
+					{
+//NSLog(@"\n++++ CKErrorRequestRateLimited ++++");
+						
+					}
 					case CKErrorServiceUnavailable:
+					{
+//NSLog(@"\n++++ CKErrorServiceUnavailable ++++");
+					}
 					case CKErrorZoneBusy:
 					{
 						// Client is being rate limited
@@ -1129,6 +1177,7 @@
 							// determine a reasonable amount of time to wait to retry
 							secondsToWaitUntilRetry = @30; // TO-DO: Really figure out how to handle this
 						}
+//NSLog(@"\n++++ CKErrorZoneBusy ++++\n    Waiting for %ld seconds\n++++++++++++++++++++++++++++++", secondsToWaitUntilRetry.integerValue);
 						
 						// TO-DO: Determine how to restart a modify records operation after X seconds
 						
@@ -1141,6 +1190,7 @@
 					}
 					case CKErrorLimitExceeded:
 					{
+
 						// The request to the server was too large. Retry this request as a smaller batch.
 						
 						// According to the WWDC 2015 CloudKit Tips & Tricks
@@ -1154,6 +1204,7 @@
 						} else {
 							_currentBatchSizeToSend = (NSUInteger)ceil(_currentBatchSizeToSend / 2);
 						}
+//NSLog(@"\n++++ CKErrorLimitExceeded ++++\n    New Batch Size: %lu\n++++++++++++++++++++++++++++++", _currentBatchSizeToSend);
 						shouldRetryModifyRecords = YES;
 						
 						break;
@@ -1249,6 +1300,7 @@
 				}
 				
 				if (weakFetchChangesOp.moreComing) {
+//NSLog(@"\n==== FETCH detected moreComing ====");
 					[self _fetchRecordChangesWithServerChangeToken:newServerChangeToken
 												 completionHandler:completionHandler];
 				}
@@ -1271,6 +1323,8 @@
 			}
 		}
 		
+//NSLog(@"\n==== SAVING Fetched Record ====\n%@\n=========================", record);
+		
 		if ([self _saveRecordLocally:record] == YES) {
 			recordsWereModified = YES;
 		}
@@ -1283,7 +1337,11 @@
 			// may not be crucial.
 			NSLog(@"Error deleting a record while fetching server changes: %@", recordID.recordName);
 		} else {
+			[_localDatabase purgeRecordChangeWithIdentifier:recordID.recordName beforeDate:[NSDate date] error:nil];
+			[_localDatabase deleteSystemFieldsForRecordWithIdentifier:recordID.recordName error:nil];
+			
 			recordsWereDeleted = YES;
+//NSLog(@"\n==== DELETED record during fetch ====\n%@\n=========================", recordID.recordName);
 		}
 	};
 	
