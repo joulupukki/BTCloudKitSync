@@ -29,6 +29,13 @@
 #define BTCloudKitSyncChangeTypeUpdate			@"Update"
 #define BTCloudKitSyncChangeTypeDelete			@"Delete"
 #define BTCloudKitSyncChangeRecordIdentifier	@"RecordIdentifier"
+
+// Set BTCloudKitSyncChangeLastModifiedKey to the NSDate that the local record
+// was actually changed. This will help with conflict resolution. When a device
+// make changes offline and/or if a device disconnects sync, but later
+// reconnects, this gives BTCloudKitSync enough information to intelligently
+// resolve conflicts.
+#define BTCloudKitSyncChangeLastModifiedKey		@"LastModified"
 #define BTCloudKitSyncChangeRecordInfoKey		@"RecordInfo"
 
 #define BTCloudKitSyncRecordTypeKey				@"RecordType"
@@ -200,7 +207,7 @@ typedef enum : NSUInteger {
  only include the properties that have changed.
  
  @param recordType The type of record to get changes for.
- @param identifier The record identifier.
+ @param date Get record changes before this date
  @param limit Restrict the number of raw changes that should be evaluated in
  the local database. Specifying a limit of 0 indicates to not limit at all and
  return as many records that exist.
@@ -209,7 +216,10 @@ typedef enum : NSUInteger {
  @return An array of NSDictionary objects representing the changes found for the
  specified recordType. On error, nil should be returned and error should contain
  the details of the error. If no changes were found, do not return error, but
- instead, return an empty array.
+ instead, return an empty array. Along with the changes, each dictionary should
+ have the following keys defined: BTCloudKitSyncChangeRecordIdentifier and
+ BTCloudKitSyncChangeLastModifiedKey, which BTCloudKitSync uses for conflict
+ resolution.
  */
 - (NSArray<NSDictionary *> *)recordChangesOfType:(NSString *)recordType beforeDate:(NSDate *)date limit:(NSUInteger)limit error:(NSError **)error;
 

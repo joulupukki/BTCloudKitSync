@@ -68,4 +68,11 @@
  */
 #define kBTCloudKitSyncChangeTimeoutInSeconds	3
 
+/**
+ Whenever BTCloudKitSync detects record changes that are within this time period
+ of each other (number of seconds), it will prefer the server change. This aids
+ in conflict resolution.
+ */
+#define kBTCloudKitSyncPreferServerChangeIfWithinSeconds 5
+
 #endif /* BTCloudKitSyncConstants_h */

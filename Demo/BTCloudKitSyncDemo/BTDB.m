@@ -788,6 +788,7 @@
 		[changes enumerateObjectsUsingBlock:^(BTContactChange * _Nonnull change, NSUInteger idx, BOOL * _Nonnull stop) {
 			NSMutableDictionary *changeInfo = [NSMutableDictionary new];
 			changeInfo[BTCloudKitSyncChangeRecordIdentifier] = change.contactIdentifier;
+			changeInfo[BTCloudKitSyncChangeLastModifiedKey] = change.changes[@"lastModified"];
 			switch (change.changeType) {
 				case BTContactChangeTypeInsert:
 				{
@@ -833,7 +834,10 @@
 	
 	BTContactChange *change = [self contactChangeForIdentifier:identifier beforeDate:date];
 	if (change) {
-		return change.changes;
+		NSMutableDictionary *changeInfo = [[NSMutableDictionary alloc] initWithDictionary:change.changes];
+		changeInfo[BTCloudKitSyncChangeRecordIdentifier] = change.contactIdentifier;
+		changeInfo[BTCloudKitSyncChangeLastModifiedKey] = change.changes[@"lastModified"];
+		return changeInfo;
 	}
 	
 	return nil;

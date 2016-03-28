@@ -1164,24 +1164,62 @@
 								switch (ckError.code) {
 									case CKErrorServerRecordChanged:
 									{
-										// A conflict was generated. For now, just
-										// use the server's version and overwrite
-										// the changes made locally.
+										// A conflict was found. Check the
+										// server and client record objects.
+										// Choose whichever one was modified
+										// latest.
+										
+										
 										CKRecord *serverRecord = ckError.userInfo[CKRecordChangedErrorServerRecordKey];
 //										CKRecord *ancestorRecord = ckError.userInfo[CKRecordChangedErrorAncestorRecordKey];
 //										CKRecord *clientRecord = ckError.userInfo[CKRecordChangedErrorClientRecordKey];
-//NSLog(@"\n++++ CONFLICT RESOLUTION ++++\n%@\n---- CLIENT RECORD ----\n%@\n---- ANCESTOR RECORD ----\n%@\n+++++++++++++++++++++++", serverRecord, clientRecord, ancestorRecord);
-										if ([self _saveRecordLocally:serverRecord] == YES) {
-											// Remove the change info for this
-											// record so it doesn't get sent again
-											// in any subsequent modify operation
-											// since we just dealt with getting it
-											// in sync with the server.
-											[_localDatabase purgeRecordChangeOfRecordType:recordType
-																		   withIdentifier:recordID.recordName
-																			   beforeDate:_currentSyncDates[recordType]
-																					error:nil];
+//NSLog(@"\n++++ CONFLICT RESOLUTION ++++\n%@\n---- CLIENT RECORD ----\n%@\n+++++++++++++++++++++++", serverRecord, clientRecord);
+										
+										NSUInteger changeIndex = [records indexOfObjectPassingTest:^BOOL(NSDictionary * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+											NSString *possibleMatchingIdentifier = obj[BTCloudKitSyncChangeRecordIdentifier];
+											if (possibleMatchingIdentifier && [possibleMatchingIdentifier isEqualToString:recordID.recordName]) {
+												return YES;
+												*stop = YES;
+											}
+											return NO;
+										}];
+										NSDictionary *clientChanges = records[changeIndex];
+										
+										NSDate *serverModificationDate = serverRecord.modificationDate;
+										NSDate *clientModificationDate = clientChanges[BTCloudKitSyncChangeLastModifiedKey];
+										
+										BOOL saveServerVersion = YES;
+										NSTimeInterval difference = ABS([serverModificationDate timeIntervalSince1970] - [clientModificationDate timeIntervalSince1970]);
+										if (difference > kBTCloudKitSyncPreferServerChangeIfWithinSeconds) {
+											NSComparisonResult comparisonResult = [serverModificationDate compare:clientModificationDate];
+											if (comparisonResult == NSOrderedAscending) {
+												// The client record is newer
+//NSLog(@"\n++++ CLIENT record is newer, saving system fields and retrying ++++");
+												// Save the system fields of the server change so that when
+												// this retries to send, the local changes will be saved.
+												
+												[self _saveSystemFieldsForRecord:serverRecord];
+												saveServerVersion = NO;
+											}
 										}
+										
+										if (saveServerVersion) {
+//NSLog(@"\n++++ SERVER record is newer, saving ++++");
+											// The server record is newer or the same modification date.
+											// Save over the local record.
+											if ([self _saveRecordLocally:serverRecord] == YES) {
+												// Remove the change info for this
+												// record so it doesn't get sent again
+												// in any subsequent modify operation
+												// since we just dealt with getting it
+												// in sync with the server.
+												[_localDatabase purgeRecordChangeOfRecordType:recordType
+																			   withIdentifier:recordID.recordName
+																				   beforeDate:_currentSyncDates[recordType]
+																						error:nil];
+											}
+										}
+										
 										break;
 									}
 									case CKErrorBatchRequestFailed:
@@ -1275,6 +1313,7 @@
 						if (recordsA == nil || recordsA.count == 0) {
 							completionHandler(YES);
 						} else {
+//NSLog(@"\n++++ Retrying Modify ++++");
 							[self _modifyRecords:recordsA
 									ofRecordType:_currentRecordType
 							   completionHandler:completionHandler];
@@ -1385,22 +1424,49 @@
 		
 //NSLog(@"\n==== SAVING Fetched Record ====\n%@\n=========================", record);
 		
-		if ([self _saveRecordLocally:record] == YES) {
-			recordsWereModified = YES;
+		// Check for local changes. If local changes (that have not been sync'd)
+		// exist and they are newer, just save the system fields so that when
+		// the modify records runs, the local changes will be pushed to CloudKit.
+		NSDate *now = [NSDate date];
+		NSDictionary *changes = [_localDatabase recordChangeOfType:record.recordType
+													withIdentifier:identifier
+														beforeDate:now
+															 error:nil];
+		BOOL saveServerVersion = YES;
+		if (changes) {
+			NSDate *serverModificationDate = record.modificationDate;
+			NSDate *clientModificationDate = changes[BTCloudKitSyncChangeLastModifiedKey];
 			
-			// If this device has a modified version of this record in the change
-			// queue, perhaps we should discard the local changes (server wins)
-			NSDate *now = [NSDate date];
-			NSDictionary *changes = [_localDatabase recordChangeOfType:record.recordType
-														withIdentifier:identifier
-															beforeDate:now
-																 error:nil];
-			if (changes) {
+			// There are some situations where if both the server and client
+			// change nearly simultaneously, partial records may be saved, so
+			// this helps to clearly have a known difference in time change for
+			// records.
+			NSTimeInterval difference = ABS([serverModificationDate timeIntervalSince1970] - [clientModificationDate timeIntervalSince1970]);
+			if (difference > kBTCloudKitSyncPreferServerChangeIfWithinSeconds) {
+				NSComparisonResult comparisonResult = [serverModificationDate compare:clientModificationDate];
+				if (comparisonResult == NSOrderedAscending) {
+					// The client record is newer. Save off the system fields so
+					// the next time modify records operation runs, the client's
+					// version will be selected.
+					saveServerVersion = NO;
+					[self _saveSystemFieldsForRecord:record];
+				}
+			}
+		}
+		
+		if (saveServerVersion) {
+			if ([self _saveRecordLocally:record] == YES) {
+				recordsWereModified = YES;
+				
+				// If this device has a modified version of this record in the change
+				// queue, perhaps we should discard the local changes (server wins)
+				if (changes) {
 //NSLog(@"\n==== DISCARDING unsynced local changes ====\n%@\n=========================", record);
-				[_localDatabase purgeRecordChangeOfRecordType:record.recordType
-											   withIdentifier:identifier
-												   beforeDate:now
-														error:nil];
+					[_localDatabase purgeRecordChangeOfRecordType:record.recordType
+												   withIdentifier:identifier
+													   beforeDate:now
+															error:nil];
+				}
 			}
 		}
 	};
@@ -1486,6 +1552,14 @@
 		}
 	}
 	
+	[self _saveSystemFieldsForRecord:record];
+	
+	return recordSaved;
+}
+
+
+- (void)_saveSystemFieldsForRecord:(CKRecord *)record
+{
 	// Save off the system fields of the CKRecord so that future updates
 	// will work properly.
 	NSMutableData *archivedData = [NSMutableData new];
@@ -1500,8 +1574,6 @@
 		// TO-DO: Figure out what to do about this error (shouldn't ever happen)
 		NSLog(@"Unable to save archived system fields: %@", dbError);
 	}
-	
-	return recordSaved;
 }
 
 @end
