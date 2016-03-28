@@ -69,6 +69,7 @@
 #pragma mark - Change Log
 
 - (NSArray<BTContactChange *> *)contactChangesBeforeDate:(NSDate *)date limit:(NSUInteger)limit;
+- (BTContactChange *)contactChangeForIdentifier:(NSString *)identifier beforeDate:(NSDate *)date;
 
 /**
  Purge (delete) all records in the contacts_changelog table before the specified

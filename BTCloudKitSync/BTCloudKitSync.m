@@ -1015,7 +1015,7 @@
 				} else {
 					// Let's purge the changes from the local database so we
 					// don't try to send this again.
-					[_localDatabase purgeRecordChangeWithIdentifier:recordIdentifier beforeDate:_currentSyncDates[recordType] error:nil];
+					[_localDatabase purgeRecordChangeOfRecordType:recordType withIdentifier:recordIdentifier beforeDate:_currentSyncDates[recordType] error:nil];
 				}
 			} else {
 				if (ckRecord == nil) {
@@ -1079,7 +1079,7 @@
 						}
 						
 						NSError *purgeError = nil;
-						[_localDatabase purgeRecordChangeWithIdentifier:identifier beforeDate:_currentSyncDates[recordType] error:&purgeError];
+						[_localDatabase purgeRecordChangeOfRecordType:recordType withIdentifier:identifier beforeDate:_currentSyncDates[recordType] error:&purgeError];
 						if (purgeError) {
 							NSLog(@"Error purging record change for modified record with identifier: %@", identifier);
 						}
@@ -1099,7 +1099,7 @@
 						}
 						
 						NSError *purgeError = nil;
-						[_localDatabase purgeRecordChangeWithIdentifier:identifier beforeDate:_currentSyncDates[recordType] error:&purgeError];
+						[_localDatabase purgeRecordChangeOfRecordType:recordType withIdentifier:identifier beforeDate:_currentSyncDates[recordType] error:&purgeError];
 						if (purgeError) {
 							NSLog(@"Error purging record change for deleted record with identifier: %@", identifier);
 						}
@@ -1168,16 +1168,19 @@
 										// use the server's version and overwrite
 										// the changes made locally.
 										CKRecord *serverRecord = ckError.userInfo[CKRecordChangedErrorServerRecordKey];
-//NSLog(@"\n++++ CONFLICT RESOLUTION ++++\n%@\n+++++++++++++++++++++++", serverRecord);
+//										CKRecord *ancestorRecord = ckError.userInfo[CKRecordChangedErrorAncestorRecordKey];
+//										CKRecord *clientRecord = ckError.userInfo[CKRecordChangedErrorClientRecordKey];
+//NSLog(@"\n++++ CONFLICT RESOLUTION ++++\n%@\n---- CLIENT RECORD ----\n%@\n---- ANCESTOR RECORD ----\n%@\n+++++++++++++++++++++++", serverRecord, clientRecord, ancestorRecord);
 										if ([self _saveRecordLocally:serverRecord] == YES) {
 											// Remove the change info for this
 											// record so it doesn't get sent again
 											// in any subsequent modify operation
 											// since we just dealt with getting it
 											// in sync with the server.
-											[_localDatabase purgeRecordChangeWithIdentifier:recordID.recordName
-																				 beforeDate:_currentSyncDates[recordType]
-																					  error:nil];
+											[_localDatabase purgeRecordChangeOfRecordType:recordType
+																		   withIdentifier:recordID.recordName
+																			   beforeDate:_currentSyncDates[recordType]
+																					error:nil];
 										}
 										break;
 									}
@@ -1367,7 +1370,8 @@
 		
 		// First check to see if the local record already matches and if
 		// it does, do nothing.
-		NSData *systemFields = [_localDatabase systemFieldsDataForRecordWithIdentifier:record.recordID.recordName error:nil];
+		NSString *identifier = record.recordID.recordName;
+		NSData *systemFields = [_localDatabase systemFieldsDataForRecordWithIdentifier:identifier error:nil];
 		if (systemFields) {
 			NSKeyedUnarchiver *archiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:systemFields];
 			archiver.requiresSecureCoding = YES;
@@ -1383,6 +1387,21 @@
 		
 		if ([self _saveRecordLocally:record] == YES) {
 			recordsWereModified = YES;
+			
+			// If this device has a modified version of this record in the change
+			// queue, perhaps we should discard the local changes (server wins)
+			NSDate *now = [NSDate date];
+			NSDictionary *changes = [_localDatabase recordChangeOfType:record.recordType
+														withIdentifier:identifier
+															beforeDate:now
+																 error:nil];
+			if (changes) {
+//NSLog(@"\n==== DISCARDING unsynced local changes ====\n%@\n=========================", record);
+				[_localDatabase purgeRecordChangeOfRecordType:record.recordType
+											   withIdentifier:identifier
+												   beforeDate:now
+														error:nil];
+			}
 		}
 	};
 	fetchChangesOp.recordWithIDWasDeletedBlock = ^(CKRecordID *recordID) {
@@ -1393,7 +1412,20 @@
 			// may not be crucial.
 			NSLog(@"Error deleting a record while fetching server changes: %@", recordID.recordName);
 		} else {
-			[_localDatabase purgeRecordChangeWithIdentifier:recordID.recordName beforeDate:[NSDate date] error:nil];
+			// To purge any pending changes, we need to know the record type,
+			// which we should have in the system fields.
+			NSData *systemFields = [_localDatabase systemFieldsDataForRecordWithIdentifier:recordID.recordName error:nil];
+			NSString *recordType = nil;
+			if (systemFields) {
+				NSKeyedUnarchiver *archiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:systemFields];
+				archiver.requiresSecureCoding = YES;
+				CKRecord *ckRecord = [[CKRecord alloc] initWithCoder:archiver];
+				recordType = ckRecord.recordType;
+			}
+			
+			if (recordType) {
+				[_localDatabase purgeRecordChangeOfRecordType:recordType withIdentifier:recordID.recordName beforeDate:[NSDate date] error:nil];
+			}
 			[_localDatabase deleteSystemFieldsForRecordWithIdentifier:recordID.recordName error:nil];
 			
 			recordsWereDeleted = YES;

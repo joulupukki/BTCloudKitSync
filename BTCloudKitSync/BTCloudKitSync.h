@@ -237,11 +237,22 @@ typedef enum : NSUInteger {
 - (BOOL)purgeRecordChangesOfType:(NSString *)recordType beforeDate:(NSDate *)date error:(NSError **)error;
 
 /**
+ Provide a change record for the specified identifier if it exists.
+ 
+ @param identifier The record identifier.
+ 
+ @return An NSDictionary object representing the changes found for the specified
+ recordType. If the object is not found, nil is returned.
+ */
+- (NSDictionary *)recordChangeOfType:(NSString *)recordType withIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError *)error;
+
+
+/**
  Purge a single change record for the specified identifier. This is called by
  BTCloudKitSync after successfully processing an upload or resolving conflicts
  for a specific record.
  */
-- (BOOL)purgeRecordChangeWithIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError **)error;
+- (BOOL)purgeRecordChangeOfRecordType:(NSString *)recordType withIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError **)error;
 
 /**
  When sync is enabled, this method is called for every record type to give the

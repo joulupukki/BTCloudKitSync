@@ -432,6 +432,104 @@
 	return changes.allValues;
 }
 
+- (BTContactChange *)contactChangeForIdentifier:(NSString *)identifier beforeDate:(NSDate *)date
+{
+	__block BTContactChange *change = nil;
+	
+	[_dbQueue inDatabase:^(FMDatabase *db) {
+		//identifier,first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp
+		NSMutableString *sql = [[NSMutableString alloc] initWithString:@"SELECT first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp FROM contacts_changelog WHERE identifier = ? ORDER BY timestamp ASC"];
+		
+		FMResultSet *rs = [db executeQuery:sql, identifier];
+		if (rs) {
+			while ([rs next]) {
+				if (change == nil) {
+					change = [[BTContactChange alloc] init];
+					change.contactIdentifier = identifier;
+				}
+				
+				BTContactChangeType changeType;
+				NSString *value = [rs stringForColumn:@"sqlAction"];
+				if ([value isEqualToString:@"INSERT"]) {
+					changeType = BTContactChangeTypeInsert;
+				} else if ([value isEqualToString:@"UPDATE"]) {
+					changeType = BTContactChangeTypeUpdate;
+				} else {
+					changeType = BTContactChangeTypeDelete;
+				}
+				change.changeType = changeType;
+				
+				change.timestamp = [rs dateForColumn:@"timestamp"];
+				
+				NSDate *date;
+				NSDate *oldDate;
+				NSString *oldValue;
+				
+				switch (changeType) {
+					case BTContactChangeTypeInsert:
+					{
+						value = [rs stringForColumn:@"first_nameNEW"];
+						if (value) {
+							change.changes[@"firstName"] = value;
+						}
+						value = [rs stringForColumn:@"last_nameNEW"];
+						if (value) {
+							change.changes[@"lastName"] = value;
+						}
+						date = [rs dateForColumn:@"last_modifiedNEW"];
+						if (date) {
+							change.changes[@"lastModified"] = date;
+						}
+						break;
+					}
+					case BTContactChangeTypeUpdate:
+					{
+						value = [rs stringForColumn:@"first_nameNEW"];
+						oldValue = [rs stringForColumn:@"first_nameOLD"];
+						if ((value && !oldValue) || (!value && oldValue) || (value && oldValue && [value isEqualToString:oldValue] == NO)) {
+							if (value) {
+								change.changes[@"firstName"] = value;
+							} else {
+								[change.changes removeObjectForKey:@"firstName"];
+							}
+						}
+						
+						value = [rs stringForColumn:@"last_nameNEW"];
+						oldValue = [rs stringForColumn:@"last_nameOLD"];
+						if ((value && !oldValue) || (!value && oldValue) || (value && oldValue && [value isEqualToString:oldValue] == NO)) {
+							if (value) {
+								change.changes[@"lastName"] = value;
+							} else {
+								[change.changes removeObjectForKey:@"lastName"];
+							}
+						}
+						
+						date = [rs dateForColumn:@"last_modifiedNEW"];
+						oldDate = [rs dateForColumn:@"last_modifiedOLD"];
+						if ((date && !oldDate) || (!date && oldDate) || (date && oldDate && [date isEqualToDate:oldDate] == NO)) {
+							if (date) {
+								change.changes[@"lastModified"] = date;
+							} else {
+								[change.changes removeObjectForKey:@"lastModified"];
+							}
+						}
+						
+						break;
+					}
+					case BTContactChangeTypeDelete:
+					{
+						change.contactIdentifier = identifier;
+						break;
+					}
+				}
+			}
+			[rs close];
+		}
+	}];
+	
+	return change;
+}
+
 - (BOOL)purgeChangesBeforeDate:(NSDate *)date error:(NSError **)error
 {
 	if (date == nil) {
@@ -726,8 +824,29 @@
 	return [self purgeChangesBeforeDate:date error:error];
 }
 
-- (BOOL)purgeRecordChangeWithIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError **)error
+- (NSDictionary *)recordChangeOfType:(NSString *)recordType withIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError *)error
 {
+	if ([recordType isEqualToString:@"Contact"] == NO) {
+		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
+		return nil;
+	}
+	
+	BTContactChange *change = [self contactChangeForIdentifier:identifier beforeDate:date];
+	if (change) {
+		return change.changes;
+	}
+	
+	return nil;
+}
+
+
+- (BOOL)purgeRecordChangeOfRecordType:(NSString *)recordType withIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError *__autoreleasing *)error
+{
+	if ([recordType isEqualToString:@"Contact"] == NO) {
+		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
+		return nil;
+	}
+	
 	if (identifier == nil) {
 		if (error) {
 			*error = [NSError errorWithDomain:@"com.bluegrassguru.BTDB" code:-1 userInfo:@{NSLocalizedDescriptionKey:@"purgeRecordChangeWithIdentifier:: sent nil identifier."}];
