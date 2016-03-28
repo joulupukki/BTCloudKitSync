@@ -30,6 +30,7 @@
 @property (nonatomic, assign) BOOL isSynchronizing;
 
 @property (nonatomic, strong) NSOperationQueue *syncQueue;
+@property (nonatomic, strong) NSOperationQueue *fetchQueue;
 
 /**
  If set to 0, we will ask for ALL changes from the local database. If set to
@@ -70,6 +71,8 @@
 
 @property (nonatomic, strong) NSMutableDictionary *currentSyncDates;
 
+@property (nonatomic, assign) BOOL isCurrentlyFetching;
+
 @end
 
 @implementation BTCloudKitSync
@@ -93,6 +96,11 @@
 		_syncQueue.name = @"SyncQueue";
 		_syncQueue.qualityOfService = NSQualityOfServiceUtility;
 		_syncQueue.maxConcurrentOperationCount = 1; // Keep some order to everything
+		
+		_fetchQueue = [NSOperationQueue new];
+		_fetchQueue.name = @"FetchRecordChangesQueue";
+		_fetchQueue.qualityOfService = NSQualityOfServiceUtility;
+		_fetchQueue.maxConcurrentOperationCount = 1;
 		
 		_currentSyncDates = [NSMutableDictionary new];
 		
@@ -396,6 +404,13 @@
 	}
 	
 	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+		
+		// If there is currently a fetch records operation occurring, wait until
+		// it is finished before continuing.
+		if (_isCurrentlyFetching) {
+			[_fetchQueue waitUntilAllOperationsAreFinished];
+		}
+		
 		// For now, each record type will be synchronized individually to make
 		// it easier to control limits/etc.
 		__block BOOL modifyRecordsSucceeded = YES;
@@ -1277,6 +1292,10 @@
 - (void)_fetchRecordChangesWithServerChangeToken:(CKServerChangeToken *)serverChangeToken
 							   completionHandler:(void (^)(BTFetchResult result, BOOL moreComing))completionHandler
 {
+	@synchronized (self) {
+		_isCurrentlyFetching = YES;
+	}
+	
 	__block BOOL recordsWereDeleted = NO;
 	__block BOOL recordsWereModified = NO;
 	
@@ -1303,6 +1322,10 @@
 					{
 						NSNumber *secondsUntilRetry = operationError.userInfo[CKErrorRetryAfterKey];
 						// TO-DO: Determine how to restart a _fetchRecordChangesWithServerChangeToken: after the specified number of seconds
+						@synchronized (self) {
+							_isCurrentlyFetching = NO;
+						}
+						completionHandler(BTFetchResultNoData, NO);
 						
 						break;
 					}
@@ -1312,6 +1335,9 @@
 			} else if (!recordsWereDeleted && !recordsWereModified && !weakFetchChangesOp.moreComing) {
 				[self _saveServerChangeToken:newServerChangeToken];
 				if (completionHandler) {
+					@synchronized (self) {
+						_isCurrentlyFetching = NO;
+					}
 					completionHandler(BTFetchResultNoData, NO);
 				}
 			} else { // if (recordsWereDeleted || recordsWereModified || moreComing)
@@ -1329,6 +1355,10 @@
 //NSLog(@"\n==== FETCH detected moreComing ====");
 					[self _fetchRecordChangesWithServerChangeToken:newServerChangeToken
 												 completionHandler:completionHandler];
+				} else {
+					@synchronized (self) {
+						_isCurrentlyFetching = NO;
+					}
 				}
 			}
 		}
@@ -1371,11 +1401,7 @@
 		}
 	};
 	
-	NSOperationQueue *queue = [NSOperationQueue new];
-	queue.name = @"fetchRecordChangesQueue";
-	queue.qualityOfService = NSQualityOfServiceUtility;
-	
-	[queue addOperation:fetchChangesOp];
+	[_fetchQueue addOperation:fetchChangesOp];
 }
 
 - (void)_saveServerChangeToken:(CKServerChangeToken *)serverChangeToken
