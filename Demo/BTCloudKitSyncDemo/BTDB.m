@@ -766,10 +766,13 @@
 	return [self updateContact:contact shouldLogChanges:NO error:error];
 }
 
-- (BOOL)deleteRecordWithIdentifier:(NSString *)identifer error:(NSError **)error
+- (BOOL)deleteRecordWithIdentifier:(NSString *)identifer withRecordType:(NSString *)recordType error:(NSError **)error
 {
-	// If we had more types than Contact, we'd need to figure out which kind of
-	// record type this was.
+	if ([recordType isEqualToString:@"Contact"] == NO) {
+		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
+		return nil;
+	}
+	
 	return [self deleteContactWithIdentifier:identifer error:error];
 }
 

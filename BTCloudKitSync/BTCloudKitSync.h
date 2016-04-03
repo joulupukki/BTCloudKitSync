@@ -192,11 +192,12 @@ typedef enum : NSUInteger {
  Deletes a record from the database.
  
  @param identifier The record identifier.
+ @param recordType The type of record to delete from the database.
  @param error If the method fails, the error should contain details for the failure.
  
  @return YES on success, NO on failure.
  */
-- (BOOL)deleteRecordWithIdentifier:(NSString *)identifer error:(NSError **)error;
+- (BOOL)deleteRecordWithIdentifier:(NSString *)identifer withRecordType:(NSString *)recordType error:(NSError **)error;
 
 
 #pragma mark - Record Change Methods

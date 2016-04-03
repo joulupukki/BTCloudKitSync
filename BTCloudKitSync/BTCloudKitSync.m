@@ -1472,30 +1472,34 @@
 	};
 	fetchChangesOp.recordWithIDWasDeletedBlock = ^(CKRecordID *recordID) {
 		NSError *error = nil;
-		[_localDatabase deleteRecordWithIdentifier:recordID.recordName error:&error];
-		if (error) {
-			// If there was an error deleting, not sure what to do, but it
-			// may not be crucial.
-			NSLog(@"Error deleting a record while fetching server changes: %@", recordID.recordName);
-		} else {
-			// To purge any pending changes, we need to know the record type,
-			// which we should have in the system fields.
-			NSData *systemFields = [_localDatabase systemFieldsDataForRecordWithIdentifier:recordID.recordName error:nil];
-			NSString *recordType = nil;
-			if (systemFields) {
-				NSKeyedUnarchiver *archiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:systemFields];
-				archiver.requiresSecureCoding = YES;
-				CKRecord *ckRecord = [[CKRecord alloc] initWithCoder:archiver];
-				recordType = ckRecord.recordType;
-			}
-			
-			if (recordType) {
+		
+		// Determine the record type by referring to the previously-saved system
+		// fields. If this device has no system fields, assume that this device
+		// knows nothing of this deleted record.
+		NSData *systemFields = [_localDatabase systemFieldsDataForRecordWithIdentifier:recordID.recordName error:nil];
+		NSString *recordType = nil;
+		if (systemFields) {
+			NSKeyedUnarchiver *archiver = [[NSKeyedUnarchiver alloc] initForReadingWithData:systemFields];
+			archiver.requiresSecureCoding = YES;
+			CKRecord *ckRecord = [[CKRecord alloc] initWithCoder:archiver];
+			recordType = ckRecord.recordType;
+		}
+		if (recordType) {
+			[_localDatabase deleteRecordWithIdentifier:recordID.recordName withRecordType:recordType error:&error];
+			if (error) {
+				// If there was an error deleting, not sure what to do, but it
+				// may not be crucial.
+				NSLog(@"Error deleting a record while fetching server changes: %@", recordID.recordName);
+			} else {
+				// To purge any pending changes, we need to know the record type,
+				// which we should have in the system fields.
+				
 				[_localDatabase purgeRecordChangeOfRecordType:recordType withIdentifier:recordID.recordName beforeDate:[NSDate date] error:nil];
-			}
-			[_localDatabase deleteSystemFieldsForRecordWithIdentifier:recordID.recordName error:nil];
-			
-			recordsWereDeleted = YES;
+				[_localDatabase deleteSystemFieldsForRecordWithIdentifier:recordID.recordName error:nil];
+				
+				recordsWereDeleted = YES;
 //NSLog(@"\n==== DELETED record during fetch ====\n%@\n=========================", recordID.recordName);
+			}
 		}
 	};
 	
