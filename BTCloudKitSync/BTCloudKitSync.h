@@ -197,7 +197,7 @@ typedef enum : NSUInteger {
  
  @return YES on success, NO on failure.
  */
-- (BOOL)deleteRecordWithIdentifier:(NSString *)identifer withRecordType:(NSString *)recordType error:(NSError **)error;
+- (BOOL)deleteRecordWithIdentifier:(NSString *)identifier withRecordType:(NSString *)recordType error:(NSError **)error;
 
 
 #pragma mark - Record Change Methods
