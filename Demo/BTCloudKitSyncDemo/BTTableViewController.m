@@ -130,7 +130,7 @@ typedef enum : NSUInteger {
 				case 2:
 				{
 					cell.textLabel.text = NSLocalizedString(@"Number of Contacts", @"Title of cell to indicate how many contacts are in the database.");
-					cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", _contactsA.count];
+					cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)_contactsA.count];
 				}
 			}
 			break;
@@ -348,7 +348,7 @@ typedef enum : NSUInteger {
 	// Update the contacts count row
 	UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:2 inSection:SectionIndexSyncSettings]];
 	if (cell) {
-		cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", _contactsA.count];
+		cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)_contactsA.count];
 	}
 }
 
@@ -402,7 +402,7 @@ typedef enum : NSUInteger {
 	// Update the contacts count row
 	UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:2 inSection:SectionIndexSyncSettings]];
 	if (cell) {
-		cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", _contactsA.count];
+		cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)_contactsA.count];
 	}
 }
 

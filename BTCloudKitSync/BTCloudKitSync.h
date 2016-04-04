@@ -255,7 +255,7 @@ typedef enum : NSUInteger {
  @return An NSDictionary object representing the changes found for the specified
  recordType. If the object is not found, nil is returned.
  */
-- (NSDictionary *)recordChangeOfType:(NSString *)recordType withIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError *)error;
+- (NSDictionary *)recordChangeOfType:(NSString *)recordType withIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError **)error;
 
 
 /**

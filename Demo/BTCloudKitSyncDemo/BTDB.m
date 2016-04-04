@@ -735,7 +735,7 @@
 {
 	if ([recordType isEqualToString:@"Contact"] == NO) {
 		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
-		return nil;
+		return NO;
 	}
 	
 	BTContact *contact = [BTContact contactWithDictionary:recordInfo];
@@ -747,7 +747,7 @@
 {
 	if ([recordType isEqualToString:@"Contact"] == NO) {
 		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
-		return nil;
+		return NO;
 	}
 	
 	BTContact *contact = [self readContactWithIdentifier:identifier];
@@ -770,7 +770,7 @@
 {
 	if ([recordType isEqualToString:@"Contact"] == NO) {
 		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
-		return nil;
+		return NO;
 	}
 	
 	return [self deleteContactWithIdentifier:identifier error:error];
@@ -822,13 +822,13 @@
 {
 	if ([recordType isEqualToString:@"Contact"] == NO) {
 		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
-		return nil;
+		return NO;
 	}
 	
 	return [self purgeChangesBeforeDate:date error:error];
 }
 
-- (NSDictionary *)recordChangeOfType:(NSString *)recordType withIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError *)error
+- (NSDictionary *)recordChangeOfType:(NSString *)recordType withIdentifier:(NSString *)identifier beforeDate:(NSDate *)date error:(NSError **)error
 {
 	if ([recordType isEqualToString:@"Contact"] == NO) {
 		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
@@ -851,7 +851,7 @@
 {
 	if ([recordType isEqualToString:@"Contact"] == NO) {
 		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
-		return nil;
+		return NO;
 	}
 	
 	if (identifier == nil) {
@@ -898,7 +898,7 @@
 {
 	if ([recordType isEqualToString:@"Contact"] == NO) {
 		// TO-DO: Make sure to set an NSError. In this app, this shouldn't ever happen though since the only record type is Contact.
-		return nil;
+		return NO;
 	}
 	
 	return [self populateContactChangeLogReturningError:error];
