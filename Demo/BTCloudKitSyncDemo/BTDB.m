@@ -329,12 +329,12 @@
 	NSMutableDictionary<NSString *, BTContactChange *> *changes = [NSMutableDictionary new];
 	[_dbQueue inDatabase:^(FMDatabase *db) {
 		//identifier,first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp
-		NSMutableString *sql = [[NSMutableString alloc] initWithString:@"SELECT identifier,first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp FROM contacts_changelog ORDER BY timestamp ASC"];
+		NSMutableString *sql = [[NSMutableString alloc] initWithString:@"SELECT identifier,first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp FROM contacts_changelog WHERE timestamp < ? ORDER BY timestamp ASC"];
 		if (limit > 0) {
 			[sql appendFormat:@" LIMIT %lu", (unsigned long)limit];
 		}
 		
-		FMResultSet *rs = [db executeQuery:sql];
+		FMResultSet *rs = [db executeQuery:sql, date];
 		if (rs) {
 			while ([rs next]) {
 				NSString *identifier = [rs stringForColumn:@"identifier"];
@@ -438,9 +438,9 @@
 	
 	[_dbQueue inDatabase:^(FMDatabase *db) {
 		//identifier,first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp
-		NSMutableString *sql = [[NSMutableString alloc] initWithString:@"SELECT first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp FROM contacts_changelog WHERE identifier = ? ORDER BY timestamp ASC"];
+		NSMutableString *sql = [[NSMutableString alloc] initWithString:@"SELECT first_nameNEW,first_nameOLD,last_nameNEW,last_nameOLD,last_modifiedNEW,last_modifiedOLD,sqlAction,timestamp FROM contacts_changelog WHERE identifier = ? AND timestamp < ? ORDER BY timestamp ASC"];
 		
-		FMResultSet *rs = [db executeQuery:sql, identifier];
+		FMResultSet *rs = [db executeQuery:sql, identifier, date];
 		if (rs) {
 			while ([rs next]) {
 				if (change == nil) {
