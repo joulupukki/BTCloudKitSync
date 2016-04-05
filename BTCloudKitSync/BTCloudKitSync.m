@@ -1433,7 +1433,7 @@
 														beforeDate:now
 															 error:nil];
 		BOOL saveServerVersion = YES;
-		if (changes) {
+		if (changes && changes.count > 0) {
 			NSDate *serverModificationDate = record.modificationDate;
 			NSDate *clientModificationDate = changes[BTCloudKitSyncChangeLastModifiedKey];
 			
