@@ -1403,6 +1403,10 @@
 					}
 				}
 			}
+		} else {
+			if (completionHandler) {
+				completionHandler(BTFetchResultNoData, weakFetchChangesOp.moreComing);
+			}
 		}
 	};
 	fetchChangesOp.recordChangedBlock = ^(CKRecord *record) {
@@ -1450,6 +1454,7 @@
 					// version will be selected.
 					saveServerVersion = NO;
 					[self _saveSystemFieldsForRecord:record];
+					NSLog(@"Fetched server change, but keeping client record because it is newer (%@)", record.recordType);
 				}
 			}
 		}
@@ -1467,6 +1472,7 @@
 													   beforeDate:now
 															error:nil];
 				}
+				NSLog(@"Saving server-fetched change (%@)", record.recordType);
 			}
 		}
 	};
@@ -1491,6 +1497,7 @@
 				// may not be crucial.
 				NSLog(@"Error deleting a record while fetching server changes: %@", recordID.recordName);
 			} else {
+				NSLog(@"Record deleted (%@) during fetch.", recordType);
 				// To purge any pending changes, we need to know the record type,
 				// which we should have in the system fields.
 				
