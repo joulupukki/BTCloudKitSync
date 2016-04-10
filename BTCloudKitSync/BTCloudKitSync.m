@@ -381,6 +381,22 @@
 
 - (void)startSync
 {
+	if ([_localDatabase shouldAllowSync] == NO) {
+		// Prevent a sync from happening and also disable sync if it is enabled.
+		NSLog(@"Attempted to sync, but a sync is not currently allowed. Disabling sync...");
+		if ([self syncEnabled]) {
+			[self enableSync:NO withCompletionBlock:^(BOOL success, NSError *error) {
+				if (success) {
+					NSLog(@"Sync has been disabled");
+				} else {
+					NSLog(@"Failed to disable sync: %@", error);
+				}
+			}];
+		}
+		
+		return;
+	}
+	
 	if (self.syncEnabled == NO) {
 		NSLog(@"Attempted to sync with sync currently disabled.");
 		return;
@@ -756,6 +772,22 @@
 
 - (void)fetchRecordChangesWithCompletionHandler:(void (^)(BTFetchResult result, BOOL moreComing))completionHandler
 {
+	if ([_localDatabase shouldAllowSync] == NO) {
+		// Prevent a sync from happening and also disable sync if it is enabled.
+		NSLog(@"Attempted to fetch record changes, but a sync is not currently allowed. Disabling sync...");
+		if ([self syncEnabled]) {
+			[self enableSync:NO withCompletionBlock:^(BOOL success, NSError *error) {
+				if (success) {
+					NSLog(@"Sync has been disabled");
+				} else {
+					NSLog(@"Failed to disable sync: %@", error);
+				}
+			}];
+		}
+		
+		return;
+	}
+	
 	// It's possible that a CKModifyRecordsOperation is currently running. If
 	// so, wait until it's done before continuing.
 	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{

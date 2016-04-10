@@ -127,6 +127,15 @@ typedef enum : NSUInteger {
 #pragma mark - Synchronization Enablement Methods
 
 /**
+ Let BTCloudKitSync know whether a sync is allowed. Some apps may want to
+ require an In-App Purchase or some other condition to allow the app to sync.
+ 
+ @return YES if sync is allowed or NO if sync should be prevented, even if the
+ device & account is fully capable of a CloudKit sync.
+ */
+- (BOOL)shouldAllowSync;
+
+/**
  Allow the database to specify the CloudKit Record Zone name to use for all
  objects.
  */
