@@ -317,8 +317,7 @@
 			// Kick off a sync by faking a change notification. This will go through the
 			// timer system and delay by X seconds (which will allow startup of the app
 			// to run smoothly).
-			NSString *notificationName = [[_localDatabase databaseChangeNotificationNames] firstObject];
-			[[NSNotificationCenter defaultCenter] postNotificationName:notificationName object:self];
+			[self _localDatabaseChangedNotification:nil];
 		} else {
 			// Disable sync
 			//	1.	Stop observing local database changes
@@ -897,8 +896,7 @@
 			// Kick off a sync by faking a change notification. This will go through the
 			// timer system and delay by X seconds (which will allow startup of the app
 			// to run smoothly).
-			NSString *notificationName = [[_localDatabase databaseChangeNotificationNames] firstObject];
-			[[NSNotificationCenter defaultCenter] postNotificationName:notificationName object:self];
+			[self _localDatabaseChangedNotification:nil];
 			
 			dispatch_async(dispatch_get_main_queue(), ^{
 				completionHandler(YES, nil);
