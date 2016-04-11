@@ -38,7 +38,38 @@
 #define BTCloudKitSyncChangeLastModifiedKey		@"LastModified"
 #define BTCloudKitSyncChangeRecordInfoKey		@"RecordInfo"
 
+#define BTCloudKitSyncRecordIdentifierKey		@"RecordIdentifier"
 #define BTCloudKitSyncRecordTypeKey				@"RecordType"
+
+#define BTCloudKitSyncLastSyncDateKey			@"LastSyncDate"
+#define BTCloudKitSyncErrorKey					@"SyncError"
+
+// Notifications for Sync Messages
+
+// userInfo contains BTCloudKitSyncRecordIdentifierKey & BTCloudKitSyncRecordTypeKey
+#define BTCloudKitSyncWillDownloadNotification	@"BTCloudKitSyncWillDownloadNotification"
+
+// userInfo contains BTCloudKitSyncRecordIdentifierKey & BTCloudKitSyncRecordTypeKey
+#define BTCloudKitSyncDidDownloadNotification	@"BTCloudKitSyncDidDownloadNotification"
+
+// userInfo contains BTCloudKitSyncRecordIdentifierKey & BTCloudKitSyncRecordTypeKey
+#define BTCloudKitSyncWillDeleteNotification	@"BTCloudKitSyncWillDeleteNotification"
+
+// userInfo contains BTCloudKitSyncRecordIdentifierKey & BTCloudKitSyncRecordTypeKey
+#define BTCloudKitSyncDidDeleteNotification		@"BTCloudKitSyncDidDeleteNotification"
+
+// userInfo contains BTCloudKitSyncRecordIdentifierKey & BTCloudKitSyncRecordTypeKey
+#define BTCloudKitSyncWillUploadNotification	@"BTCloudKitSyncWillUploadNotification"
+
+// userInfo contains BTCloudKitSyncRecordIdentifierKey & BTCloudKitSyncRecordTypeKey
+#define BTCloudKitSyncDidUploadNotification		@"BTCloudKitSyncDidUploadNotification"
+
+// userInfo contains BTCloudKitSyncLastSyncDateKey
+#define BTCloudKitSyncSucceededNotification		@"BTCloudKitSyncSucceededNotification"
+
+// userInfo contains BTCloudKitSyncErrorKey
+#define BTCloudKitSyncFailedNotification		@"BTCloudKitSyncFailedNotification"
+
 
 #define BTCloudKitSyncErrorDomain				@"BTCloudKitSync"
 
@@ -51,6 +82,7 @@ typedef enum : NSInteger {
 	BTCloudKitSyncErrorConfigureChangeTracking	= 6, // The localDatabase could not configure change tracking. The userInfo dictionary will contain the record type in BTCloudKitSyncRecordTypeKey.
 	BTCloudKitSyncErrorPurgeChanges				= 7, // The localDatabase could not purge changes. The userInfo dictionary will contain the record type in BTCloudKitSyncRecordTypeKey.
 	BTCloudKitSyncErrorPurgeSystemFields		= 8, // The localDatabase could not purge system fields.
+	BTCloudKitSyncErrorModifyRecords			= 9, // There was an error modifying records (uploading records to CloudKit)
 } BTCloudKitSyncErrorCode;
 
 typedef enum : NSUInteger {
@@ -337,6 +369,5 @@ typedef enum : NSUInteger {
  @return YES if the purge succeeded or NO on a failure.
  */
 - (BOOL)purgeAllSystemFieldsWithError:(NSError **)error;
-
 
 @end

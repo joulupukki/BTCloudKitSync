@@ -26,36 +26,6 @@
 #define kBTCloudKitSyncSettingSyncEnabledKey	@"SyncEnabled"
 #define kBTCloudKitSyncSettingLastSyncDateKey	@"LastSyncDate"
 
-#pragma mark - Notifications
-
-/**
- Posted via NSNotificationCenter at the beginning of a sync with CloudKit.
- */
-#define kBTCloudKitSyncBeganNotification			@"BTCloudKitSyncBeganNotification"
-
-/**
- Posted via NSNotificationCenter during a sync with a message about what is
- currently happening during the sync process.
- 
- The userInfo will contain the message with kBTCloudKitSyncMessageKey.
- */
-#define kBTCloudKitSyncMessageNotification		@"BTCloudKitSyncMessageNotification"
-
-/**
- Posted via NSNotificationCenter at the end of a successful sync with CloudKit.
- */
-#define kBTCloudKitSyncSuccessNotification		@"BTCloudKitSyncSuccessNotification"
-
-/**
- Posted via NSNotificationCenter if a sync with CloudKit fails.
- 
- The userInfo will contain an NSError with kBTCloudKitSyncErrorKey.
- */
-#define kBTCloudKitSyncErrorNotification			@"BTCloudKitSyncErrorNotification"
-
-#define kBTCloudKitSyncMessageKey				@"BTCloudKitSyncMessageKey"
-#define kBTCloudKitSyncErrorKey					@"BTCloudKitSyncErrorKey"
-
 #pragma mark - Sync Constants
 
 #define kBTCloudKitSyncServerChangeTokenKey			@"BTCloudKitSyncServerChangeToken"
@@ -74,5 +44,12 @@
  in conflict resolution.
  */
 #define kBTCloudKitSyncPreferServerChangeIfWithinSeconds 5
+
+/**
+ CloudKit calls to fetch data may happen at any time, and sometimes happen right
+ after each other, so instead of indicating that a sync has completed, wait for
+ the number of seconds specified here before notifying BTCloudKitSyncDatabase.
+ */
+#define kBTCloudKitSyncCompletedNotificationDelay 3
 
 #endif /* BTCloudKitSyncConstants_h */

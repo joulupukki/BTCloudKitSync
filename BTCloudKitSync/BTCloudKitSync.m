@@ -32,6 +32,8 @@
 @property (nonatomic, strong) NSOperationQueue *syncQueue;
 @property (nonatomic, strong) NSOperationQueue *fetchQueue;
 
+@property (nonatomic, strong) NSTimer *syncCompletedTimer;
+
 /**
  If set to 0, we will ask for ALL changes from the local database. If set to
  something other than 0, BTCloudKitSync will only ask for this number of local
@@ -459,32 +461,7 @@
 		}
 		
 		if (modifyRecordsSucceeded == YES) {
-			// TO-DO: Perhaps check for server changes here?
-			
-//			CKServerChangeToken *serverChangeToken = nil;
-//			NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:kBTCloudKitSyncServerChangeTokenKey];
-//			if (data) {
-//				serverChangeToken = [NSKeyedUnarchiver unarchiveObjectWithData:data];
-//			}
-//			
-//			[self _fetchRecordChangesWithServerChangeToken:serverChangeToken
-//										 completionHandler:^(BTFetchResult result, BOOL moreComing) {
-//											 // Delay setting this by just a tiny bit because in some cases,
-//											 // a fetch will actually not quite have finished a local save,
-//											 // BTCloudKitSync will receive a local change notification, and
-//											 // kick off another sync. Theoretically, there's a slight chance
-//											 // a user could make a change during this period and the app
-//											 // wouldn't pick up the change until a later sync.
-//											 // TO-DO: Figure out if there's a better way to handle wrapping up fetchChanges local notification kicking off a sync
-//											 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-//												 @synchronized (self) {
-//													 _currentSyncDate = nil;
-//													 _currentRecordType = nil;
-//													 _currentBatchSizeToSend = 0;
-//												 }
-//											 });
-//										 }];
-			
+			// Check for server changes
 			[self fetchRecordChangesWithCompletionHandler:^(BTFetchResult result, BOOL moreComing) {
 				// Delay setting this by just a tiny bit because in some cases,
 				// a fetch will actually not quite have finished a local save,
@@ -500,6 +477,12 @@
 						_currentBatchSizeToSend = 0;
 						[_currentSyncDates removeAllObjects];
 					}
+					
+					NSDate *syncDate = [NSDate date];
+					[[NSUserDefaults standardUserDefaults] setObject:syncDate forKey:kBTCloudKitSyncSettingLastSyncDateKey];
+					[[NSUserDefaults standardUserDefaults] synchronize];
+					
+					[self _postDelayedSyncCompletion];
 				});
 			}];
 		} else {
@@ -509,6 +492,13 @@
 				_currentBatchSizeToSend = 0;
 				[_currentSyncDates removeAllObjects];
 			}
+			
+			dispatch_async(dispatch_get_main_queue(), ^{
+				NSError *error = [NSError errorWithDomain:BTCloudKitSyncErrorDomain code:BTCloudKitSyncErrorModifyRecords userInfo:@{NSLocalizedDescriptionKey:@"Error occurred when uploading data to iCloud."}];
+				[[NSNotificationCenter defaultCenter] postNotificationName:BTCloudKitSyncFailedNotification
+																	object:self
+																  userInfo:@{BTCloudKitSyncErrorKey:error}];
+			});
 		}
 	});
 }
@@ -807,6 +797,14 @@
 									 completionHandler:^(BTFetchResult result, BOOL moreComing) {
 //NSLog(@"\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n          FETCH RESULT: %lu, %d \n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", result, moreComing);
 										 completionHandler(result, moreComing);
+										 
+										 if (moreComing == NO) {
+											 NSDate *syncDate = [NSDate date];
+											 [[NSUserDefaults standardUserDefaults] setObject:syncDate forKey:kBTCloudKitSyncSettingLastSyncDateKey];
+											 [[NSUserDefaults standardUserDefaults] synchronize];
+											 
+											 [self _postDelayedSyncCompletion];
+										 }
 									 }];
 		
 		//	[self _fetchRecordChangesWithServerChangeToken:serverChangeToken
@@ -1047,6 +1045,13 @@
 					// don't try to send this again.
 					[_localDatabase purgeRecordChangeOfRecordType:recordType withIdentifier:recordIdentifier beforeDate:_currentSyncDates[recordType] error:nil];
 				}
+				
+				dispatch_async(dispatch_get_main_queue(), ^{
+					[[NSNotificationCenter defaultCenter] postNotificationName:BTCloudKitSyncWillDeleteNotification
+																		object:self
+																	  userInfo:@{BTCloudKitSyncRecordTypeKey:recordIdentifier,
+																				 BTCloudKitSyncRecordIdentifierKey:recordType}];
+				});
 			} else {
 				if (ckRecord == nil) {
 					// This must be the very first time we've sent this
@@ -1061,6 +1066,13 @@
 					}];
 					[recordsToSaveA addObject:ckRecord];
 				}
+				
+				dispatch_async(dispatch_get_main_queue(), ^{
+					[[NSNotificationCenter defaultCenter] postNotificationName:BTCloudKitSyncWillUploadNotification
+																		object:self
+																	  userInfo:@{BTCloudKitSyncRecordTypeKey:recordIdentifier,
+																				 BTCloudKitSyncRecordIdentifierKey:recordType}];
+				});
 			}
 		}
 	}];
@@ -1114,6 +1126,13 @@
 							NSLog(@"Error purging record change for modified record with identifier: %@", identifier);
 						}
 						
+						dispatch_async(dispatch_get_main_queue(), ^{
+							[[NSNotificationCenter defaultCenter] postNotificationName:BTCloudKitSyncDidUploadNotification
+																				object:self
+																			  userInfo:@{BTCloudKitSyncRecordTypeKey:identifier,
+																						 BTCloudKitSyncRecordIdentifierKey:recordType}];
+						});
+						
 //NSLog(@"\n++++ Record Uploaded ++++\n%@\n+++++++++++++++++++++++", savedRecord);
 					}];
 				}
@@ -1134,6 +1153,12 @@
 							NSLog(@"Error purging record change for deleted record with identifier: %@", identifier);
 						}
 						
+						dispatch_async(dispatch_get_main_queue(), ^{
+							[[NSNotificationCenter defaultCenter] postNotificationName:BTCloudKitSyncDidDeleteNotification
+																				object:self
+																			  userInfo:@{BTCloudKitSyncRecordTypeKey:identifier,
+																						 BTCloudKitSyncRecordIdentifierKey:recordType}];
+						});
 //NSLog(@"\n++++ Record Deleted ++++\n%@\n+++++++++++++++++++++++", recordID.recordName);
 					}];
 				}
@@ -1456,6 +1481,13 @@
 			}
 		}
 		
+		dispatch_async(dispatch_get_main_queue(), ^{
+			[[NSNotificationCenter defaultCenter] postNotificationName:BTCloudKitSyncWillDownloadNotification
+																object:self
+															  userInfo:@{BTCloudKitSyncRecordTypeKey:identifier,
+																		 BTCloudKitSyncRecordIdentifierKey:record.recordType}];
+		});
+		
 //NSLog(@"\n==== SAVING Fetched Record ====\n%@\n=========================", record);
 		
 		// Check for local changes. If local changes (that have not been sync'd)
@@ -1503,6 +1535,13 @@
 															error:nil];
 				}
 				NSLog(@"Saving server-fetched change (%@)", record.recordType);
+				
+				dispatch_async(dispatch_get_main_queue(), ^{
+					[[NSNotificationCenter defaultCenter] postNotificationName:BTCloudKitSyncDidDownloadNotification
+																		object:self
+																	  userInfo:@{BTCloudKitSyncRecordTypeKey:identifier,
+																				 BTCloudKitSyncRecordIdentifierKey:record.recordType}];
+				});
 			}
 		}
 	};
@@ -1521,6 +1560,13 @@
 			recordType = ckRecord.recordType;
 		}
 		if (recordType) {
+			dispatch_async(dispatch_get_main_queue(), ^{
+				[[NSNotificationCenter defaultCenter] postNotificationName:BTCloudKitSyncWillDeleteNotification
+																	object:self
+																  userInfo:@{BTCloudKitSyncRecordTypeKey:recordType,
+																			 BTCloudKitSyncRecordIdentifierKey:recordID.recordName}];
+			});
+			
 			[_localDatabase deleteRecordWithIdentifier:recordID.recordName withRecordType:recordType error:&error];
 			if (error) {
 				// If there was an error deleting, not sure what to do, but it
@@ -1535,6 +1581,13 @@
 				[_localDatabase deleteSystemFieldsForRecordWithIdentifier:recordID.recordName error:nil];
 				
 				recordsWereDeleted = YES;
+				
+				dispatch_async(dispatch_get_main_queue(), ^{
+					[[NSNotificationCenter defaultCenter] postNotificationName:BTCloudKitSyncDidDeleteNotification
+																		object:self
+																	  userInfo:@{BTCloudKitSyncRecordTypeKey:recordType,
+																				 BTCloudKitSyncRecordIdentifierKey:recordID.recordName}];
+				});
 //NSLog(@"\n==== DELETED record during fetch ====\n%@\n=========================", recordID.recordName);
 			}
 		}
@@ -1615,6 +1668,37 @@
 		// TO-DO: Figure out what to do about this error (shouldn't ever happen)
 		NSLog(@"Unable to save archived system fields: %@", dbError);
 	}
+}
+
+
+- (void)_postDelayedSyncCompletion
+{
+	NSDate *fireDate = [NSDate dateWithTimeIntervalSinceNow:kBTCloudKitSyncCompletedNotificationDelay];
+	if (_syncCompletedTimer) {
+		_syncCompletedTimer.fireDate = fireDate;
+	} else {
+		_syncCompletedTimer = [[NSTimer alloc] initWithFireDate:fireDate
+													   interval:0
+														 target:self
+													   selector:@selector(_syncCompletionTimerFired:)
+													   userInfo:nil
+														repeats:NO];
+		[[NSRunLoop mainRunLoop] addTimer:_syncCompletedTimer forMode:NSDefaultRunLoopMode];
+	}
+}
+
+- (void)_syncCompletionTimerFired:(NSTimer *)timer
+{
+	if (_syncCompletedTimer && _syncCompletedTimer.isValid) {
+		[_syncCompletedTimer invalidate];
+	}
+	_syncCompletedTimer = nil;
+	
+	NSDate *lastSyncDate = [[NSUserDefaults standardUserDefaults] objectForKey:kBTCloudKitSyncSettingLastSyncDateKey];
+	
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[[NSNotificationCenter defaultCenter] postNotificationName:BTCloudKitSyncSucceededNotification object:self userInfo:@{BTCloudKitSyncLastSyncDateKey:lastSyncDate}];
+	});
 }
 
 @end

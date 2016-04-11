@@ -697,6 +697,15 @@
 }
 
 
+- (BOOL)shouldAllowSync
+{
+	// No reason to not allow sync in the demo app. You may want to return NO
+	// in your own app if sync requires some condition, like an IAP purchase or
+	// subscription.
+	return YES;
+}
+
+
 - (NSString *)recordZoneName
 {
 	return @"BTCloudKitSyncDemo";

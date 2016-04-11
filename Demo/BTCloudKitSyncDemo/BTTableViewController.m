@@ -67,9 +67,11 @@ typedef enum : NSUInteger {
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_contactUpdated:) name:kBTContactUpdatedNotification object:nil];
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_contactDeleted:) name:kBTContactDeletedNotification object:nil];
 	
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_syncMessageReceived:) name:kBTCloudKitSyncMessageNotification object:nil];
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_syncSucceeded:) name:kBTCloudKitSyncSuccessNotification object:nil];
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_syncFailed:) name:kBTCloudKitSyncErrorNotification object:nil];
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_syncDownloadNotification:) name:BTCloudKitSyncWillDownloadNotification object:nil];
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_syncDeleteNotification:) name:BTCloudKitSyncWillDeleteNotification object:nil];
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_syncUploadNotification:) name:BTCloudKitSyncWillUploadNotification object:nil];
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_syncCompletedNotification:) name:BTCloudKitSyncSucceededNotification object:nil];
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_syncErrorNotification:) name:BTCloudKitSyncFailedNotification object:nil];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -407,34 +409,43 @@ typedef enum : NSUInteger {
 }
 
 
-- (void)_syncMessageReceived:(NSNotification *)notification
+- (void)_syncDownloadNotification:(NSNotification *)notification
 {
-	if (notification.userInfo == nil) {
-		return;
-	}
-	NSString *message = notification.userInfo[kBTCloudKitSyncMessageKey];
-	if (message) {
-		[self _updateSyncMessage:message];
-	}
+	[self _updateSyncMessage:NSLocalizedString(@"Downloading...", @"Downloading sync message.")];
 }
 
-- (void)_syncSucceeded:(NSNotification *)notification
+- (void)_syncDeleteNotification:(NSNotification *)notification
 {
-	NSIndexPath *indexPath = [NSIndexPath indexPathForRow:1 inSection:SectionIndexSyncSettings];
-	[self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationFade];
+	[self _updateSyncMessage:NSLocalizedString(@"Removing deleted item(s)...", @"Deleting records sync message.")];
 }
 
-- (void)_syncFailed:(NSNotification *)notification
+- (void)_syncUploadNotification:(NSNotification *)notification
 {
-	if (notification.userInfo == nil) {
-		return;
-	}
-	NSError *error = notification.userInfo[kBTCloudKitSyncErrorKey];
+	[self _updateSyncMessage:NSLocalizedString(@"Uploading...", @"Uploading records sync message.")];
+}
+
+- (void)_syncCompletedNotification:(NSNotification *)notification
+{
+	NSDate *lastSyncDate = notification.userInfo[BTCloudKitSyncLastSyncDateKey];
+	NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+	dateFormatter.doesRelativeDateFormatting = YES;
+	dateFormatter.locale = [NSLocale currentLocale];
+	dateFormatter.dateStyle = NSDateFormatterMediumStyle;
+	dateFormatter.timeStyle = NSDateFormatterMediumStyle;
+	
+	NSString *message = [dateFormatter stringFromDate:lastSyncDate];
+	[self _updateSyncMessage:message];
+}
+
+- (void)_syncErrorNotification:(NSNotification *)notification
+{
+	NSError *error = notification.userInfo[BTCloudKitSyncErrorKey];
 	if (error) {
 		[self _updateSyncMessage:error.localizedDescription];
+	} else {
+		[self _updateSyncMessage:NSLocalizedString(@"Please restart the app", @"Error message shown if a sync fails.")];
 	}
 }
-
 
 - (void)_updateSyncMessage:(NSString *)message
 {
