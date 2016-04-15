@@ -52,4 +52,9 @@
  */
 #define kBTCloudKitSyncCompletedNotificationDelay 3
 
+/**
+ This notification is sent out if a change to an iCloud account is detected.
+ */
+#define kBTCloudKitSynciCloudAccountChangedNotification @"iCloudAccountChanged"
+
 #endif /* BTCloudKitSyncConstants_h */

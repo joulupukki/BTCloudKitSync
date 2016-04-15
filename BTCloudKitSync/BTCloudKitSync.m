@@ -775,6 +775,7 @@
 			}];
 		}
 		
+		completionHandler(BTFetchResultNoData, NO);
 		return;
 	}
 	
@@ -813,6 +814,15 @@
 }
 
 #pragma mark - Custom Properties
+
+- (BOOL)isCloudKitAvailable
+{
+	if (_currentCloudKitStatus == CKAccountStatusAvailable) {
+		return YES;
+	}
+	
+	return NO;
+}
 
 - (BOOL)syncEnabled
 {
@@ -942,6 +952,11 @@
 		if (success == NO) {
 			NSLog(@"Could not configure sync after receiving CKAccountChangedNotification: %@", error ? error : @"Unknown error");
 		}
+		
+		// Send out a notification regardless of the success
+		dispatch_async(dispatch_get_main_queue(), ^{
+			[[NSNotificationCenter defaultCenter] postNotificationName:kBTCloudKitSynciCloudAccountChangedNotification object:nil];
+		});
 	}];
 }
 
@@ -1374,6 +1389,9 @@
 							   completionHandler:completionHandler];
 						}
 					}
+				} else {
+					// Error, but shouldn't retry
+					completionHandler(NO);
 				}
 			}
 		} else {
@@ -1408,11 +1426,13 @@
 				switch (operationError.code) {
 					case CKErrorChangeTokenExpired:
 					{
+						NSLog(@"CloudKit server change token expired. Clearing the saved token and retrying...");
 						// The server change token we sent previously is too old and
 						// we need to fetch everything fresh.
 						[self _clearServerChangeToken];
 						[self _fetchRecordChangesWithServerChangeToken:nil
 													 completionHandler:completionHandler];
+						break;
 					}
 					case CKErrorRequestRateLimited:
 					case CKErrorServiceUnavailable:
@@ -1424,6 +1444,14 @@
 						}
 						completionHandler(BTFetchResultNoData, NO);
 						
+						break;
+					}
+					default:
+					{
+						NSLog(@"Error during fetch: %@", operationError);
+						if (completionHandler) {
+							completionHandler(BTFetchResultNoData, NO);
+						}
 						break;
 					}
 				}
@@ -1455,6 +1483,9 @@
 				} else {
 					@synchronized (self) {
 						_isCurrentlyFetching = NO;
+					}
+					if (completionHandler) {
+						completionHandler(BTFetchResultNoData, NO);
 					}
 				}
 			}

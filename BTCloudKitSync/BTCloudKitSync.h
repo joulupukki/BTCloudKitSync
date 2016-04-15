@@ -106,6 +106,7 @@ typedef enum : NSUInteger {
 /**
  Determines whether sync is currently enabled.
  */
+@property (nonatomic, readonly) BOOL isCloudKitAvailable;
 @property (nonatomic, readonly) BOOL syncEnabled;
 @property (nonatomic, readonly) BOOL isConfigured;
 @property (nonatomic, readonly) NSDate *lastSyncDate;
