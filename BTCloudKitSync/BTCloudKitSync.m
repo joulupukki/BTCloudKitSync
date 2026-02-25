@@ -255,8 +255,8 @@
 			
 			// This must be the first time sync has been enabled for this user. Create
 			// a new zone subscription.
-			CKSubscription *subscription = [[CKSubscription alloc] initWithZoneID:zoneID subscriptionID:subscriptionID options:0];
-			
+			CKSubscription *subscription = [[CKRecordZoneSubscription alloc] initWithZoneID:zoneID subscriptionID:subscriptionID];
+
 			// Configure the subscription to receive silent notifications
 			CKNotificationInfo *info = [CKNotificationInfo new];
 			info.shouldSendContentAvailable = YES;
